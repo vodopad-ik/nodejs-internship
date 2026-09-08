@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start Dev Databases (Docker)",
+      "type": "shell",
+      "command": "docker-compose up -d",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Auth Service (Express)",
+      "type": "shell",
+      "command": "pnpm --filter auth-service dev",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Main API (NestJS)",
+      "type": "shell",
+      "command": "pnpm --filter main-api start:dev",
+      "problemMatcher": []
+    }
+  ]
+}

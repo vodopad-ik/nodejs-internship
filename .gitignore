@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+*.log
+
+# AI Assistant Infrastructure
+.antigravity/
+.antigravityignore
+AGENTS.md
+
+docs/pr-sequence.md
