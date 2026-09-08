@@ -1,11 +1,35 @@
+# Dependencies
 node_modules/
-dist/
-.env
-*.log
+.pnpm-store/
 
-# AI Assistant Infrastructure
+# Build outputs
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+
+# IDE & OS files
+.DS_Store
+Thumbs.db
+.idea/
+
+# AI Assistant Infrastructure (если хотите держать локально)
+docs/pr-sequence.md
 .antigravity/
 .antigravityignore
 AGENTS.md
-
-docs/pr-sequence.md
