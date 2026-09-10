@@ -28,8 +28,8 @@ coverage/
 Thumbs.db
 .idea/
 
-# AI Assistant Infrastructure (если хотите держать локально)
-docs/pr-sequence.md
+# AI Assistant Infrastructure
+docs/
 .antigravity/
 .antigravityignore
 AGENTS.md
