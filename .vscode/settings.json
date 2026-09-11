@@ -2,7 +2,7 @@
   // Автоматическое форматирование при сохранении
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
-  
+
   // Автоматический фикс ошибок ESLint при сохранении
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "always",
@@ -19,5 +19,5 @@
     "**/node_modules": true,
     "**/pnpm-lock.yaml": true,
     "**/dist": true
-  },
+  }
 }
