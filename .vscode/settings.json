@@ -19,5 +19,6 @@
     "**/node_modules": true,
     "**/pnpm-lock.yaml": true,
     "**/dist": true
-  }
+  },
+  "prisma.pinToPrisma6": true
 }
