@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "prebuild": "prisma generate",
     "build": "nest build",
     "dev": "nest start --watch",
     "start": "nest start",
@@ -12,7 +13,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
   },
-    "dependencies": {
+  "dependencies": {
     "@nestjs/common": "^10.3.0",
     "@nestjs/config": "^3.2.3",
     "@nestjs/core": "^10.3.0",

@@ -33,3 +33,5 @@ jobs:
 
       - name: Run Build
         run: pnpm build
+        env:
+          DATABASE_URL: 'postgresql://postgres:postgrespassword@localhost:5432/innogram_db?schema=main'

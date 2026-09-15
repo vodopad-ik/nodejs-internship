@@ -5,5 +5,336 @@ datasource db {
 }
 
 generator client {
-  provider        = "prisma-client-js"
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  ADMIN
+
+  @@schema("auth")
+}
+
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+  GITHUB
+
+  @@schema("auth")
+}
+
+model User {
+  id       String  @id @default(cuid())
+  role     Role    @default(USER)
+  disabled Boolean @default(false)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String?  @map("created_by")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by")
+
+  profile  Profile?
+  accounts Account[]
+
+  @@map("users")
+  @@schema("auth")
+}
+
+model Account {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  passwordHash String?      @map("password_hash")
+  provider     AuthProvider
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, provider])
+  @@unique([email, provider])
+  @@map("accounts")
+  @@schema("auth")
+}
+
+enum ChatParticipantRole {
+  ADMIN
+  MEMBER
+
+  @@schema("main")
+}
+
+model Profile {
+  id          String    @id @default(cuid())
+  userId      String    @unique @map("user_id")
+  username    String    @unique
+  displayName String?   @map("display_name")
+  birthday    DateTime? @db.Date
+  bio         String?
+  avatarUrl   String?
+  isPublic    Boolean   @default(true) @map("is_public")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  posts         Post[]
+  comments      Comment[]
+  postLikes     PostLike[]
+  commentLikes  CommentLike[]
+  messages      Message[]
+  notifications Notification[]
+
+  following ProfileFollow[] @relation("ProfileFollowing")
+  followers ProfileFollow[] @relation("ProfileFollowers")
+
+  chatParticipants ChatParticipant[]
+  configurations   ProfileToProfileConfiguration[]
+
+  @@map("profiles")
+  @@schema("main")
+}
+
+model Post {
+  id         String  @id @default(cuid())
+  profileId  String 
+  content    String
+  isArchived Boolean @default(false)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  profile    Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  comments   Comment[]
+  likes      PostLike[]
+  postAssets PostAsset[]
+
+  @@map("posts")
+  @@schema("main")
+}
+
+model Comment {
+  id              String  @id @default(cuid())
+  postId          String  @map("post_id")
+  profileId       String  @map("profile_id")
+  parentCommentId String? @map("parent_comment_id")
+  content         String
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  post          Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  profile       Profile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  parentComment Comment?      @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies       Comment[]     @relation("CommentReplies")
+  likes         CommentLike[]
+
+  @@map("comments")
+  @@schema("main")
+}
+
+model Asset {
+  id       String @id @default(cuid())
+  fileName String @map("file_name")
+  filePath String @map("file_path")
+  fileType String @map("file_type")
+  fileSize Int    @map("file_size")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  postAssets    PostAsset[]
+  messageAssets MessageAsset[]
+
+  @@map("assets")
+  @@schema("main")
+}
+
+model Chat {
+  id      String  @id @default(cuid())
+  title   String?
+  isGroup Boolean @default(false)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  participants ChatParticipant[]
+  messages     Message[]
+
+  @@map("chats")
+  @@schema("main")
+}
+
+model Message {
+  id               String  @id @default(cuid())
+  chatId           String  @map("chat_id")
+  senderId         String  @map("sender_id")
+  replyToMessageId String? @map("reply_to_message_id")
+  content          String
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  chat           Chat           @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender         Profile        @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  replyToMessage Message?       @relation("MessageReplies", fields: [replyToMessageId], references: [id], onDelete: Cascade)
+  replies        Message[]      @relation("MessageReplies")
+  messageAssets  MessageAsset[]
+
+  @@map("messages")
+  @@schema("main")
+}
+
+model PostAsset {
+  postId     String @map("post_id")
+  assetId    String @map("asset_id")
+  orderIndex Int    @default(0) @map("order_index")
+
+  post  Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@id([postId, assetId])
+  @@map("post_assets")
+  @@schema("main")
+}
+
+model ProfileFollow {
+  profileId  String  @map("profile_id")
+  followerId String  @map("follower_id")
+  accepted   Boolean @default(false)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  following Profile @relation("ProfileFollowing", fields: [profileId], references: [id], onDelete: Cascade)
+  follower  Profile @relation("ProfileFollowers", fields: [followerId], references: [id], onDelete: Cascade)
+
+  @@id([profileId, followerId])
+  @@map("profile_follows")
+  @@schema("main")
+}
+
+model ChatParticipant {
+  userId   String              @map("user_id")
+  chatId   String              @map("chat_id")
+  role     ChatParticipantRole @default(MEMBER) @map("role")
+  joinedAt DateTime            @default(now()) @map("joined_at")
+
+  chat    Chat    @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, chatId])
+  @@map("chat_participants")
+  @@schema("main")
+}
+
+model MessageAsset {
+  messageId String @map("message_id")
+  assetId   String @map("asset_id")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  asset   Asset   @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, assetId])
+  @@map("message_assets")
+  @@schema("main")
+}
+
+model PostLike {
+  postId    String @map("post_id")
+  profileId String @map("profile_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  posts   Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([postId, profileId])
+  @@map("post_likes")
+  @@schema("main")
+}
+
+model CommentLike {
+  commentId String @map("comment_id")
+  profileId String @map("profile_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@id([commentId, profileId])
+  @@map("comment_likes")
+  @@schema("main")
+}
+
+model ProfileConfiguration {
+  id          String  @id @default(cuid())
+  key         String  @unique
+  description String?
+
+  profile ProfileToProfileConfiguration[]
+
+  @@map("profile_configurations")
+  @@schema("main")
+}
+
+model ProfileToProfileConfiguration {
+  profileId       String  @map("profile_id")
+  configurationId String  @map("configuration_id")
+  isEnabled       Boolean @default(true) @map("is_enabled")
+
+  profile       Profile              @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  configuration ProfileConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+
+  @@id([profileId, configurationId])
+  @@map("profile_to_profile_configurations")
+  @@schema("main")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String   @map("actor_id")
+  action     String
+  targetType String   @map("target_type")
+  targetId   String?  @map("target_id")
+  payload    Json?
+  isAdressed String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("audit_logs")
+  @@schema("main")
+}
+
+enum NotificationType {
+  SYSTEM
+  POST_LIKE
+  COMMENT_LIKE
+  NEW_COMMENT
+  NEW_FOLLOWER
+  CHAT_MESSAGE
+  CUSTOM
+
+  @@schema("notification")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  profileId String           @map("profile_id")
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?
+  isRead    Boolean          @default(false) @map("is_read")
+  readAt    DateTime?        @map("read_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, isRead])
+  @@index([profileId, createdAt(sort: Desc)])
+  @@map("notifications")
+  @@schema("notification")
 }
