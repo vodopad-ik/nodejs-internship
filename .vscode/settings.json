@@ -5,7 +5,7 @@
 
   // Автоматический фикс ошибок ESLint при сохранении
   "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": "always",
+    "source.fixAll.eslint": "explicit",
     "source.organizeImports": "always"
   },
 
@@ -20,5 +20,6 @@
     "**/pnpm-lock.yaml": true,
     "**/dist": true
   },
-  "prisma.pinToPrisma6": true
+  "prisma.pinToPrisma6": true,
+  "js/ts.tsdk.path": "node_modules/typescript/lib"
 }
