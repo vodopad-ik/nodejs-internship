@@ -45,6 +45,7 @@ model Account {
   email        String       @unique
   passwordHash String?      @map("password_hash")
   provider     AuthProvider
+  providerId   String?      @map("provider_id")
 
   userId String @map("user_id")
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -72,7 +73,7 @@ model Profile {
   displayName String?   @map("display_name")
   birthday    DateTime? @db.Date
   bio         String?
-  avatarUrl   String?
+  avatarUrl   String?   @map("avatar_url")
   isPublic    Boolean   @default(true) @map("is_public")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -99,9 +100,9 @@ model Profile {
 
 model Post {
   id         String  @id @default(cuid())
-  profileId  String 
+  profileId  String  @map("profile_id")
   content    String
-  isArchived Boolean @default(false)
+  isArchived Boolean @default(false) @map("is_archived")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -111,6 +112,7 @@ model Post {
   likes      PostLike[]
   postAssets PostAsset[]
 
+  @@index([profileId, createdAt(sort: Desc)])
   @@map("posts")
   @@schema("main")
 }
@@ -131,6 +133,9 @@ model Comment {
   replies       Comment[]     @relation("CommentReplies")
   likes         CommentLike[]
 
+  @@index([postId])
+  @@index([profileId])
+  @@index([parentCommentId])
   @@map("comments")
   @@schema("main")
 }
@@ -155,7 +160,7 @@ model Asset {
 model Chat {
   id      String  @id @default(cuid())
   title   String?
-  isGroup Boolean @default(false)
+  isGroup Boolean @default(false) @map("is_group")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -183,6 +188,7 @@ model Message {
   replies        Message[]      @relation("MessageReplies")
   messageAssets  MessageAsset[]
 
+  @@index([chatId, createdAt(sort: Desc)])
   @@map("messages")
   @@schema("main")
 }
@@ -216,15 +222,15 @@ model ProfileFollow {
 }
 
 model ChatParticipant {
-  userId   String              @map("user_id")
-  chatId   String              @map("chat_id")
-  role     ChatParticipantRole @default(MEMBER) @map("role")
-  joinedAt DateTime            @default(now()) @map("joined_at")
+  profileId String              @map("profile_id")
+  chatId    String              @map("chat_id")
+  role      ChatParticipantRole @default(MEMBER) @map("role")
+  joinedAt  DateTime            @default(now()) @map("joined_at")
 
   chat    Chat    @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
-  @@id([userId, chatId])
+  @@id([profileId, chatId])
   @@map("chat_participants")
   @@schema("main")
 }
@@ -300,7 +306,7 @@ model AuditLog {
   targetType String   @map("target_type")
   targetId   String?  @map("target_id")
   payload    Json?
-  isAdressed String?
+  isAdressed String?  @map("is_adressed")
   createdAt  DateTime @default(now()) @map("created_at")
 
   @@map("audit_logs")
