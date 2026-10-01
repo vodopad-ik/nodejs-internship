@@ -44,8 +44,8 @@ model Account {
   id           String       @id @default(cuid())
   email        String       @unique
   passwordHash String?      @map("password_hash")
-  provider     AuthProvider
   providerId   String?      @map("provider_id")
+  provider     AuthProvider
 
   userId String @map("user_id")
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
