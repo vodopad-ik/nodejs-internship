@@ -33,3 +33,6 @@ docs/
 .antigravity/
 .antigravityignore
 AGENTS.md
+
+.postman/
+postman/
