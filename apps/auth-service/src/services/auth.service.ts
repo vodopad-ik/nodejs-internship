@@ -44,7 +44,7 @@ export class AuthService {
     if (!isPasswordValid) {
       throw new Error('Invalid credentials');
     }
-    const tokens = this.generateTokens(user._id.toString(), user.email);
+    const tokens = await this.generateTokens(user._id.toString(), user.email);
 
     return {
       user: { id: user._id.toString(), email: user.email },
@@ -97,5 +97,112 @@ export class AuthService {
       await this.redisAuthRepo.blacklistToken(accessToken, 15 * 60);
     }
     return { success: true };
+  }
+
+  getOAuthUrl(provider: 'google' | 'github'): string {
+    if (provider === 'google') {
+      const rootUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
+      const params = new URLSearchParams({
+        client_id: env.oauth.google.clientId,
+        redirect_uri: env.oauth.google.callbackUrl,
+        response_type: 'code',
+        scope: 'openid email profile',
+        access_type: 'offline',
+        prompt: 'consent',
+      });
+      return `${rootUrl}?${params.toString()}`;
+    } else {
+      const rootUrl = 'https://github.com/login/oauth/authorize';
+      const params = new URLSearchParams({
+        client_id: env.oauth.github.clientId,
+        redirect_uri: env.oauth.github.callbackUrl,
+        scope: 'user:email',
+      });
+      return `${rootUrl}?${params.toString()}`;
+    }
+  }
+
+  async exchangeCodeForTokens(provider: 'google' | 'github', code: string) {
+    let email, providerId;
+
+    if (provider === 'google') {
+      const tokenData = (await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code,
+          client_id: env.oauth.google.clientId,
+          client_secret: env.oauth.google.clientSecret,
+          redirect_uri: env.oauth.google.callbackUrl,
+          grant_type: 'authorization_code',
+        }),
+      }).then((res) => res.json())) as { access_token?: string };
+      if (!tokenData.access_token) {
+        throw new Error('Failed to obtain access token from Google');
+      }
+      const userData = (await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      }).then((res) => res.json())) as { id: string; email: string };
+      email = userData.email;
+      providerId = userData.id;
+    } else {
+      const tokenData = (await fetch('https://github.com/login/oauth/access_token', {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code,
+          client_id: env.oauth.github.clientId,
+          client_secret: env.oauth.github.clientSecret,
+          redirect_uri: env.oauth.github.callbackUrl,
+        }),
+      }).then((res) => res.json())) as { access_token?: string };
+
+      if (!tokenData.access_token) {
+        throw new Error('Failed to obtain access token from GitHub');
+      }
+
+      const githubUser = (await fetch('https://api.github.com/user', {
+        headers: {
+          Authorization: `Bearer ${tokenData.access_token}`,
+          'User-Agent': 'innogram-auth-service',
+        },
+      }).then((res) => res.json())) as { id: string; email?: string };
+      providerId = String(githubUser.id);
+      email = githubUser.email || '';
+
+      if (!email) {
+        const emails = (await fetch('https://api.github.com/user/emails', {
+          headers: {
+            Authorization: `Bearer ${tokenData.access_token}`,
+            'User-Agent': 'innogram-auth-service',
+          },
+        }).then((res) => res.json())) as Array<{
+          email: string;
+          primary: boolean;
+          verified: boolean;
+        }>;
+        const primary = emails.find((e) => e.primary && e.verified) || emails[0];
+        if (primary) {
+          email = primary.email;
+        }
+        if (!email) {
+          throw new Error('Could not retrieve email from GitHub');
+        }
+      }
+    }
+
+    let user = await User.findOne({ $or: [{ email }, { provider, providerId }] });
+    if (!user) {
+      user = await User.create({
+        email,
+        provider,
+        providerId,
+      });
+    }
+    const tokens = await this.generateTokens(user._id.toString(), user.email);
+    return {
+      user: { id: user._id.toString(), email: user.email },
+      ...tokens,
+    };
   }
 }
