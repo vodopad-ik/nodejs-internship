@@ -11,7 +11,6 @@ export class AuthService {
   private async generateTokens(userId: string, email: string) {
     const tokenId = crypto.randomUUID();
     const accessToken = jwt.sign({ userId, email }, env.jwt.accessSecret, { expiresIn: '15m' });
-
     const refreshToken = jwt.sign({ userId, tokenId }, env.jwt.refreshSecret, { expiresIn: '7d' });
 
     await this.redisAuthRepo.storeRefreshTokenId(userId, tokenId, 604800);
@@ -63,8 +62,7 @@ export class AuthService {
     }
     return {
       valid: true,
-      userId: payload.userId,
-      email: payload.email,
+      ...payload,
     };
   }
 
