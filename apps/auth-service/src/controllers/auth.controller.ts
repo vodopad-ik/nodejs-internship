@@ -72,3 +72,27 @@ authRouter.post('/logout', async (req: Request, res: Response, next: NextFunctio
     next(error);
   }
 });
+
+authRouter.get('/oauth/initiate', async (req: Request, res: Response) => {
+  const provider = req.query.provider as 'google' | 'github';
+  if (!provider || (provider !== 'google' && provider !== 'github')) {
+    res.status(400).json({ error: 'Valid provider (google or github) is required' });
+    return;
+  }
+  const url = authService.getOAuthUrl(provider);
+  res.status(200).json({ url });
+});
+
+authRouter.post('/oauth/exchange-code', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { provider, code } = req.body;
+    if (!provider || !code) {
+      res.status(400).json({ error: 'provider and code are required' });
+      return;
+    }
+    const result = await authService.exchangeCodeForTokens(provider, code);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
