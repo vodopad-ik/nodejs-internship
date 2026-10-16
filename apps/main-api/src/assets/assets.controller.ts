@@ -12,6 +12,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { AccessGuard } from '../auth/guards/access.guard';
 import { AssetsService } from './assets.service';
+import { UploadAssetsDto } from './dto/upload-assets.dto';
 
 @ApiTags('assets')
 @ApiBearerAuth()
@@ -22,17 +23,7 @@ export class AssetsController {
 
   @Post('upload')
   @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        files: {
-          type: 'array',
-          items: { type: 'string', format: 'binary' },
-        },
-      },
-    },
-  })
+  @ApiBody({ type: UploadAssetsDto })
   @UseInterceptors(FilesInterceptor('files', 10))
   async uploadFiles(
     @UploadedFiles(
