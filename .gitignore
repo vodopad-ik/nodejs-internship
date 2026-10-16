@@ -28,11 +28,14 @@ coverage/
 Thumbs.db
 .idea/
 
-# AI Assistant Infrastructure
+# AI Assistant Infrastructure (Antigravity & Local Rules)
 docs/
+.agents/
+.agent/
 .antigravity/
 .antigravityignore
 AGENTS.md
+GEMINI.md
 
 .postman/
 postman/
