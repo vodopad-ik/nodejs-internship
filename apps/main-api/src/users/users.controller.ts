@@ -1,7 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, Patch } from '@nestjs/common';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { User } from '@prisma/client';
-import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
@@ -20,13 +19,6 @@ export class UsersController {
   @ApiOperation({ summary: 'Get user by id' })
   findOne(@Param('id') id: string): Promise<User | null> {
     return this.usersService.findOne(id);
-  }
-
-  @Post()
-  @ApiOperation({ summary: 'Create a new user' })
-  @ApiResponse({ status: 201, description: 'The user has been successfully created.' })
-  create(@Body() dto: CreateUserDto): Promise<User> {
-    return this.usersService.create(dto);
   }
 
   @Patch(':id')
