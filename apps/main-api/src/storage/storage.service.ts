@@ -23,7 +23,7 @@ export class StorageService implements OnModuleInit {
       secretKey,
     });
 
-    this.bucket = config.get<string>('MINIO_BUCKET_NAME') || 'innogram-media';
+    this.bucket = this.config.get<string>('MINIO_BUCKET_NAME') || 'innogram-media';
   }
 
   async onModuleInit() {
@@ -60,6 +60,6 @@ export class StorageService implements OnModuleInit {
   }
 
   async deleteFile(key: string): Promise<void> {
-    this.client.removeObject(this.bucket, key);
+    await this.client.removeObject(this.bucket, key);
   }
 }

@@ -5,8 +5,8 @@ import { StorageService } from '../storage/storage.service';
 @Injectable()
 export class AssetsService {
   constructor(
-    private storage: StorageService,
-    private prisma: PrismaService,
+    private readonly storage: StorageService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async uploadAssets(files: Express.Multer.File[]) {
