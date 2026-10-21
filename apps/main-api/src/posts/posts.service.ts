@@ -10,7 +10,7 @@ import { UpdatePostDto } from './dto/update-post.dto';
 
 @Injectable()
 export class PostsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   private async getProfileByUserId(userId: string) {
     const profile = await this.prisma.profile.findUnique({ where: { userId } });
@@ -105,7 +105,10 @@ export class PostsService {
   }
 
   async update(id: string, userId: string, dto: UpdatePostDto) {
-    await this.getPostAndCheckOwnership(id, userId);
+    const { post } = await this.getPostAndCheckOwnership(id, userId);
+    if (post.isArchived) {
+      throw new BadRequestException('Archived post cannot be modified');
+    }
 
     return this.prisma.$transaction(async (tx) => {
       if (dto.assetIds) {
@@ -152,13 +155,16 @@ export class PostsService {
     await this.prisma.post.delete({ where: { id } });
   }
 
-  async toggleArchive(id: string, userId: string) {
+  async archivePost(id: string, userId: string) {
     const { post } = await this.getPostAndCheckOwnership(id, userId);
+    if (post.isArchived) {
+      return post;
+    }
 
     return this.prisma.post.update({
       where: { id },
       data: {
-        isArchived: !post.isArchived,
+        isArchived: true,
       },
     });
   }
@@ -167,7 +173,24 @@ export class PostsService {
     const profile = await this.getProfileByUserId(userId);
 
     return this.prisma.post.findMany({
-      where: { profileId: profile.id },
+      where: { profileId: profile.id, isArchived: false },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        postAssets: {
+          include: {
+            asset: true,
+          },
+          orderBy: { orderIndex: 'asc' },
+        },
+      },
+    });
+  }
+
+  async findMyArchivedPosts(userId: string) {
+    const profile = await this.getProfileByUserId(userId);
+
+    return this.prisma.post.findMany({
+      where: { profileId: profile.id, isArchived: true },
       orderBy: { createdAt: 'desc' },
       include: {
         postAssets: {
