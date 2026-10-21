@@ -24,38 +24,17 @@ enum AuthProvider {
 }
 
 model User {
-  id       String  @id @default(cuid())
+  id       String  @id
+  email    String  @unique
   role     Role    @default(USER)
   disabled Boolean @default(false)
 
   createdAt DateTime @default(now()) @map("created_at")
-  createdBy String?  @map("created_by")
   updatedAt DateTime @updatedAt @map("updated_at")
-  updatedBy String?  @map("updated_by")
 
   profile  Profile?
-  accounts Account[]
 
   @@map("users")
-  @@schema("auth")
-}
-
-model Account {
-  id           String       @id @default(cuid())
-  email        String       @unique
-  passwordHash String?      @map("password_hash")
-  providerId   String?      @map("provider_id")
-  provider     AuthProvider
-
-  userId String @map("user_id")
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@unique([userId, provider])
-  @@unique([email, provider])
-  @@map("accounts")
   @@schema("auth")
 }
 
