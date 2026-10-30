@@ -1,4 +1,6 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { SignUpDto } from './dto/signup.dto';
 
@@ -7,7 +9,21 @@ export class AuthService {
   private readonly authServiceUrl =
     process.env.AUTH_SERVICE_URL || 'http://localhost:3001/internal/auth';
 
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly prisma: PrismaService,
+  ) {}
+
   async handleSignUp(dto: SignUpDto) {
+    if (dto.username) {
+      const existingProfile = await this.prisma.profile.findUnique({
+        where: { username: dto.username },
+      });
+      if (existingProfile) {
+        throw new BadRequestException('Username is already taken');
+      }
+    }
+
     const res = await fetch(`${this.authServiceUrl}/register`, {
       method: 'POST',
       headers: {
@@ -20,6 +36,16 @@ export class AuthService {
     if (!res.ok) {
       throw new BadRequestException(data.error || data.message || 'Registration failed');
     }
+
+    const emailUsername = dto.email.split('@')[0] ?? 'user';
+    const username = dto.username || emailUsername;
+
+    await this.usersService.create({
+      id: data.user.id,
+      email: dto.email,
+      username,
+    });
+
     return data;
   }
 
@@ -108,6 +134,21 @@ export class AuthService {
     const data = await res.json();
     if (!res.ok) {
       throw new BadRequestException(data.error || 'Failed to exchange OAuth code');
+    }
+
+    const existingUser = await this.usersService.findOne(data.user.id).catch(() => null);
+    if (!existingUser) {
+      let username = data.user.email.split('@')[0];
+      const taken = await this.prisma.profile.findUnique({ where: { username } });
+      if (taken) {
+        username = `${username}_${Math.floor(1000 + Math.random() * 9000)}`;
+      }
+
+      await this.usersService.create({
+        id: data.user.id,
+        email: data.user.email,
+        username,
+      });
     }
     return data;
   }
