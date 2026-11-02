@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -12,6 +22,8 @@ import {
 import { AccessGuard } from '../auth/guards/access.guard';
 import { CurrentUserId } from '../common/decorators/current-user-id.decorator';
 import { CreatePostDto } from './dto/create-post.dto';
+import { PaginationQueryDto } from './dto/pagination-query.dto';
+import { SearchPostDto } from './dto/search-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PostsService } from './posts.service';
 
@@ -42,6 +54,20 @@ export class PostsController {
   @ApiOkResponse({ description: 'List of archived posts of current user' })
   async findMyArchivedPosts(@CurrentUserId() userId: string) {
     return this.postsService.findMyArchivedPosts(userId);
+  }
+
+  @Get('feed')
+  @ApiOperation({ summary: 'Get user feed based on follows' })
+  @ApiOkResponse({ description: 'Paginated feed posts' })
+  getFeed(@CurrentUserId() userId: string, @Query() query: PaginationQueryDto) {
+    return this.postsService.getFeed(userId, query);
+  }
+
+  @Get('search')
+  @ApiOperation({ summary: 'Search posts by content query' })
+  @ApiOkResponse({ description: 'Paginated search results' })
+  search(@CurrentUserId() userId: string, @Query() searchDto: SearchPostDto) {
+    return this.postsService.search(userId, searchDto);
   }
 
   @Get(':id')

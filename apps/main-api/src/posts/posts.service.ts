@@ -4,8 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePostDto } from './dto/create-post.dto';
+import { PaginationQueryDto } from './dto/pagination-query.dto';
+import { SearchPostDto } from './dto/search-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 
 @Injectable()
@@ -201,5 +204,132 @@ export class PostsService {
         },
       },
     });
+  }
+
+  async getFeed(userId: string, query: PaginationQueryDto) {
+    const profile = await this.getProfileByUserId(userId);
+    const follows = await this.prisma.profileFollow.findMany({
+      where: { followerId: profile.id, accepted: true },
+      select: { profileId: true },
+    });
+
+    const authorIds = follows.map((f) => f.profileId);
+    if (authorIds.length === 0) {
+      return {
+        items: [],
+        meta: {
+          total: 0,
+          page: query.page,
+          limit: query.limit,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+      };
+    }
+
+    const skip = (query.page - 1) * query.limit;
+    const take = query.limit;
+
+    const where = {
+      profileId: {
+        in: authorIds,
+      },
+      isArchived: false,
+    };
+
+    const [total, items] = await this.prisma.$transaction([
+      this.prisma.post.count({ where }),
+      this.prisma.post.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          profile: {
+            select: { id: true, username: true, displayName: true, avatarUrl: true },
+          },
+          postAssets: {
+            include: {
+              asset: true,
+            },
+            orderBy: { orderIndex: 'asc' },
+          },
+        },
+      }),
+    ]);
+
+    const totalPages = Math.ceil(total / query.limit);
+
+    return {
+      items,
+      meta: {
+        total,
+        page: query.page,
+        limit: query.limit,
+        totalPages,
+        hasNextPage: query.page < totalPages,
+        hasPreviousPage: query.page > 1,
+      },
+    };
+  }
+
+  async search(userId: string, searchDto: SearchPostDto) {
+    const profile = await this.getProfileByUserId(userId);
+    const follows = await this.prisma.profileFollow.findMany({
+      where: { followerId: profile.id, accepted: true },
+      select: { profileId: true },
+    });
+
+    const authorIds = follows.map((f) => f.profileId);
+
+    const where: Prisma.PostWhereInput = {
+      content: {
+        contains: searchDto.query,
+        mode: 'insensitive',
+      },
+      isArchived: false,
+      OR: [
+        { profile: { isPublic: true } },
+        { profileId: { in: authorIds } },
+        { profileId: profile.id },
+      ],
+    };
+
+    const skip = (searchDto.page - 1) * searchDto.limit;
+    const take = searchDto.limit;
+
+    const [total, items] = await this.prisma.$transaction([
+      this.prisma.post.count({ where }),
+      this.prisma.post.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          profile: {
+            select: { id: true, username: true, displayName: true, avatarUrl: true },
+          },
+          postAssets: {
+            include: { asset: true },
+            orderBy: { orderIndex: 'asc' },
+          },
+        },
+      }),
+    ]);
+
+    const totalPages = Math.ceil(total / searchDto.limit);
+
+    return {
+      items,
+      meta: {
+        total,
+        page: searchDto.page,
+        limit: searchDto.limit,
+        totalPages,
+        hasNextPage: searchDto.page < totalPages,
+        hasPreviousPage: searchDto.page > 1,
+      },
+    };
   }
 }
