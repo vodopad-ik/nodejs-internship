@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { createPaginatedResponse, getPaginationOffsets } from '../common/utils/pagination.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { PaginationQueryDto } from './dto/pagination-query.dto';
@@ -215,21 +216,10 @@ export class PostsService {
 
     const authorIds = follows.map((f) => f.profileId);
     if (authorIds.length === 0) {
-      return {
-        items: [],
-        meta: {
-          total: 0,
-          page: query.page,
-          limit: query.limit,
-          totalPages: 0,
-          hasNextPage: false,
-          hasPreviousPage: false,
-        },
-      };
+      return createPaginatedResponse([], 0, query);
     }
 
-    const skip = (query.page - 1) * query.limit;
-    const take = query.limit;
+    const { skip, take } = getPaginationOffsets(query);
 
     const where = {
       profileId: {
@@ -259,19 +249,7 @@ export class PostsService {
       }),
     ]);
 
-    const totalPages = Math.ceil(total / query.limit);
-
-    return {
-      items,
-      meta: {
-        total,
-        page: query.page,
-        limit: query.limit,
-        totalPages,
-        hasNextPage: query.page < totalPages,
-        hasPreviousPage: query.page > 1,
-      },
-    };
+    return createPaginatedResponse(items, total, query);
   }
 
   async search(userId: string, searchDto: SearchPostDto) {
@@ -296,8 +274,7 @@ export class PostsService {
       ],
     };
 
-    const skip = (searchDto.page - 1) * searchDto.limit;
-    const take = searchDto.limit;
+    const { skip, take } = getPaginationOffsets(searchDto);
 
     const [total, items] = await this.prisma.$transaction([
       this.prisma.post.count({ where }),
@@ -318,18 +295,6 @@ export class PostsService {
       }),
     ]);
 
-    const totalPages = Math.ceil(total / searchDto.limit);
-
-    return {
-      items,
-      meta: {
-        total,
-        page: searchDto.page,
-        limit: searchDto.limit,
-        totalPages,
-        hasNextPage: searchDto.page < totalPages,
-        hasPreviousPage: searchDto.page > 1,
-      },
-    };
+    return createPaginatedResponse(items, total, searchDto);
   }
 }

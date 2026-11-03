@@ -1,16 +1,17 @@
-import { Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 
 export class PaginationQueryDto {
-  @Min(1)
-  @IsInt()
-  @Type(() => Number)
   @IsOptional()
+  @Transform(({ value }) => (value !== undefined ? Number(value) : 1))
+  @IsInt()
+  @Min(1)
   page: number = 1;
 
-  @Max(50)
-  @IsInt()
-  @Type(() => Number)
   @IsOptional()
+  @Transform(({ value }) => (value !== undefined ? Number(value) : 10))
+  @IsInt()
+  @Min(1)
+  @Max(50)
   limit: number = 10;
 }
