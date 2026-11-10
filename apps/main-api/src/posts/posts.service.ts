@@ -141,7 +141,14 @@ export class PostsService {
           content: dto.content,
         },
         include: {
-          profile: true,
+          profile: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              avatarUrl: true,
+            },
+          },
           postAssets: {
             include: {
               asset: true,
@@ -214,10 +221,10 @@ export class PostsService {
       select: { profileId: true },
     });
 
-    const authorIds = follows.map((f) => f.profileId);
-    if (authorIds.length === 0) {
+    if (follows.length === 0) {
       return createPaginatedResponse([], 0, query);
     }
+    const authorIds = follows.map((f) => f.profileId);
 
     const { skip, take } = getPaginationOffsets(query);
 
