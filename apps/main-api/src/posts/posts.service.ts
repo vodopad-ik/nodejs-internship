@@ -4,8 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { createPaginatedResponse, getPaginationOffsets } from '../common/utils/pagination.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePostDto } from './dto/create-post.dto';
+import { PaginationQueryDto } from './dto/pagination-query.dto';
+import { SearchPostDto } from './dto/search-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 
 @Injectable()
@@ -201,5 +205,96 @@ export class PostsService {
         },
       },
     });
+  }
+
+  async getFeed(userId: string, query: PaginationQueryDto) {
+    const profile = await this.getProfileByUserId(userId);
+    const follows = await this.prisma.profileFollow.findMany({
+      where: { followerId: profile.id, accepted: true },
+      select: { profileId: true },
+    });
+
+    const authorIds = follows.map((f) => f.profileId);
+    if (authorIds.length === 0) {
+      return createPaginatedResponse([], 0, query);
+    }
+
+    const { skip, take } = getPaginationOffsets(query);
+
+    const where = {
+      profileId: {
+        in: authorIds,
+      },
+      isArchived: false,
+    };
+
+    const [total, items] = await this.prisma.$transaction([
+      this.prisma.post.count({ where }),
+      this.prisma.post.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          profile: {
+            select: { id: true, username: true, displayName: true, avatarUrl: true },
+          },
+          postAssets: {
+            include: {
+              asset: true,
+            },
+            orderBy: { orderIndex: 'asc' },
+          },
+        },
+      }),
+    ]);
+
+    return createPaginatedResponse(items, total, query);
+  }
+
+  async search(userId: string, searchDto: SearchPostDto) {
+    const profile = await this.getProfileByUserId(userId);
+    const follows = await this.prisma.profileFollow.findMany({
+      where: { followerId: profile.id, accepted: true },
+      select: { profileId: true },
+    });
+
+    const authorIds = follows.map((f) => f.profileId);
+
+    const where: Prisma.PostWhereInput = {
+      content: {
+        contains: searchDto.query,
+        mode: 'insensitive',
+      },
+      isArchived: false,
+      OR: [
+        { profile: { isPublic: true } },
+        { profileId: { in: authorIds } },
+        { profileId: profile.id },
+      ],
+    };
+
+    const { skip, take } = getPaginationOffsets(searchDto);
+
+    const [total, items] = await this.prisma.$transaction([
+      this.prisma.post.count({ where }),
+      this.prisma.post.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          profile: {
+            select: { id: true, username: true, displayName: true, avatarUrl: true },
+          },
+          postAssets: {
+            include: { asset: true },
+            orderBy: { orderIndex: 'asc' },
+          },
+        },
+      }),
+    ]);
+
+    return createPaginatedResponse(items, total, searchDto);
   }
 }
