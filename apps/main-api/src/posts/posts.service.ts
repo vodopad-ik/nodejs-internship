@@ -5,27 +5,23 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { createPaginatedResponse, getPaginationOffsets } from '../common/utils/pagination.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { UsersService } from '../users/users.service';
 import { CreatePostDto } from './dto/create-post.dto';
-import { PaginationQueryDto } from './dto/pagination-query.dto';
 import { SearchPostDto } from './dto/search-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 
 @Injectable()
 export class PostsService {
-  constructor(private readonly prisma: PrismaService) {}
-
-  private async getProfileByUserId(userId: string) {
-    const profile = await this.prisma.profile.findUnique({ where: { userId } });
-    if (!profile) {
-      throw new NotFoundException('Profile not found');
-    }
-    return profile;
-  }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly usersService: UsersService,
+  ) {}
 
   private async getPostAndCheckOwnership(postId: string, userId: string) {
-    const profile = await this.getProfileByUserId(userId);
+    const profile = await this.usersService.getProfileByUserId(userId);
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
     if (!post) {
       throw new NotFoundException('Post not found');
@@ -38,7 +34,7 @@ export class PostsService {
   }
 
   async create(userId: string, dto: CreatePostDto) {
-    const profile = await this.getProfileByUserId(userId);
+    const profile = await this.usersService.getProfileByUserId(userId);
     const assets = await this.prisma.asset.findMany({ where: { id: { in: dto.assetIds } } });
     if (assets.length !== dto.assetIds.length) {
       throw new BadRequestException('One or more assets do not exist');
@@ -84,6 +80,7 @@ export class PostsService {
             username: true,
             displayName: true,
             avatarUrl: true,
+            isPublic: true,
           },
         },
         postAssets: {
@@ -97,14 +94,32 @@ export class PostsService {
       throw new NotFoundException('Post not found');
     }
 
-    if (post.isArchived) {
-      const currentProfile = currentUserId
-        ? await this.prisma.profile.findUnique({ where: { userId: currentUserId } })
-        : null;
-      if (!currentProfile || post.profileId !== currentProfile.id) {
-        throw new NotFoundException('Post not found');
+    if (!post.profile.isPublic) {
+      if (!currentUserId) {
+        throw new ForbiddenException('This profile is private');
+      }
+      const currentProfile = await this.prisma.profile.findUnique({
+        where: { userId: currentUserId },
+      });
+      if (!currentProfile) {
+        throw new NotFoundException('Profile not found');
+      }
+      const isOwner = currentProfile.id === post.profileId;
+      if (!isOwner) {
+        const isFollower = await this.prisma.profileFollow.findUnique({
+          where: {
+            profileId_followerId: {
+              profileId: post.profileId,
+              followerId: currentProfile.id,
+            },
+          },
+        });
+        if (!isFollower?.accepted) {
+          throw new ForbiddenException('This profile is private');
+        }
       }
     }
+
     return post;
   }
 
@@ -181,7 +196,7 @@ export class PostsService {
   }
 
   async findMyPosts(userId: string) {
-    const profile = await this.getProfileByUserId(userId);
+    const profile = await this.usersService.getProfileByUserId(userId);
 
     return this.prisma.post.findMany({
       where: { profileId: profile.id, isArchived: false },
@@ -198,7 +213,7 @@ export class PostsService {
   }
 
   async findMyArchivedPosts(userId: string) {
-    const profile = await this.getProfileByUserId(userId);
+    const profile = await this.usersService.getProfileByUserId(userId);
 
     return this.prisma.post.findMany({
       where: { profileId: profile.id, isArchived: true },
@@ -215,7 +230,7 @@ export class PostsService {
   }
 
   async getFeed(userId: string, query: PaginationQueryDto) {
-    const profile = await this.getProfileByUserId(userId);
+    const profile = await this.usersService.getProfileByUserId(userId);
     const follows = await this.prisma.profileFollow.findMany({
       where: { followerId: profile.id, accepted: true },
       select: { profileId: true },
@@ -260,7 +275,7 @@ export class PostsService {
   }
 
   async search(userId: string, searchDto: SearchPostDto) {
-    const profile = await this.getProfileByUserId(userId);
+    const profile = await this.usersService.getProfileByUserId(userId);
     const follows = await this.prisma.profileFollow.findMany({
       where: { followerId: profile.id, accepted: true },
       select: { profileId: true },

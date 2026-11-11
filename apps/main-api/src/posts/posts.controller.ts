@@ -21,8 +21,8 @@ import {
 } from '@nestjs/swagger';
 import { AccessGuard } from '../auth/guards/access.guard';
 import { CurrentUserId } from '../common/decorators/current-user-id.decorator';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { CreatePostDto } from './dto/create-post.dto';
-import { PaginationQueryDto } from './dto/pagination-query.dto';
 import { SearchPostDto } from './dto/search-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PostsService } from './posts.service';
