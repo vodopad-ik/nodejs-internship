@@ -1,11 +1,22 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { User } from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
+import { ERROR_MESSAGES } from '../common/constants/messages.constants';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async getProfileByUserId(userId: string) {
+    const profile = await this.prisma.profile.findUnique({
+      where: { userId },
+    });
+    if (!profile) {
+      throw new NotFoundException(ERROR_MESSAGES.PROFILE_NOT_FOUND);
+    }
+    return profile;
+  }
 
   create(data: { id: string; email: string; username: string; displayName?: string }) {
     return this.prisma.user.create({
@@ -38,22 +49,28 @@ export class UsersService {
       where: { id },
     });
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(ERROR_MESSAGES.USER_NOT_FOUND);
     }
     return user;
   }
 
   update(id: string, dto: UpdateUserDto): Promise<User> {
+    const profileUpdate: Prisma.ProfileUpdateWithoutUserInput = {
+      ...(dto.username !== undefined && { username: dto.username }),
+      ...(dto.displayName !== undefined && { displayName: dto.displayName }),
+      ...(dto.bio !== undefined && { bio: dto.bio }),
+      ...(dto.isPublic !== undefined && { isPublic: dto.isPublic }),
+      ...(dto.avatarUrl !== undefined && { avatarUrl: dto.avatarUrl }),
+      ...(dto.birthday !== undefined && { birthday: new Date(dto.birthday) }),
+    };
+
+    const hasProfileUpdates = Object.keys(profileUpdate).length > 0;
+
     return this.prisma.user.update({
       where: { id },
       data: {
-        profile: dto.username
-          ? {
-              update: {
-                username: dto.username,
-              },
-            }
-          : undefined,
+        ...(dto.email !== undefined && { email: dto.email }),
+        profile: hasProfileUpdates ? { update: profileUpdate } : undefined,
       },
       include: {
         profile: true,

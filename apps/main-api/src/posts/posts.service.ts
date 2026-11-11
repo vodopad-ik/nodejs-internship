@@ -5,43 +5,40 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { ERROR_MESSAGES } from '../common/constants/messages.constants';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { createPaginatedResponse, getPaginationOffsets } from '../common/utils/pagination.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { UsersService } from '../users/users.service';
 import { CreatePostDto } from './dto/create-post.dto';
-import { PaginationQueryDto } from './dto/pagination-query.dto';
 import { SearchPostDto } from './dto/search-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 
 @Injectable()
 export class PostsService {
-  constructor(private readonly prisma: PrismaService) {}
-
-  private async getProfileByUserId(userId: string) {
-    const profile = await this.prisma.profile.findUnique({ where: { userId } });
-    if (!profile) {
-      throw new NotFoundException('Profile not found');
-    }
-    return profile;
-  }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly usersService: UsersService,
+  ) {}
 
   private async getPostAndCheckOwnership(postId: string, userId: string) {
-    const profile = await this.getProfileByUserId(userId);
+    const profile = await this.usersService.getProfileByUserId(userId);
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
     if (!post) {
-      throw new NotFoundException('Post not found');
+      throw new NotFoundException(ERROR_MESSAGES.POST_NOT_FOUND);
     }
     if (post.profileId !== profile.id) {
-      throw new ForbiddenException('You are not allowed to modify this post');
+      throw new ForbiddenException(ERROR_MESSAGES.NOT_ALLOWED_TO_MODIFY_POST);
     }
 
     return { post, profile };
   }
 
   async create(userId: string, dto: CreatePostDto) {
-    const profile = await this.getProfileByUserId(userId);
+    const profile = await this.usersService.getProfileByUserId(userId);
     const assets = await this.prisma.asset.findMany({ where: { id: { in: dto.assetIds } } });
     if (assets.length !== dto.assetIds.length) {
-      throw new BadRequestException('One or more assets do not exist');
+      throw new BadRequestException(ERROR_MESSAGES.ASSETS_DO_NOT_EXIST);
     }
 
     return this.prisma.post.create({
@@ -84,6 +81,7 @@ export class PostsService {
             username: true,
             displayName: true,
             avatarUrl: true,
+            isPublic: true,
           },
         },
         postAssets: {
@@ -94,24 +92,44 @@ export class PostsService {
     });
 
     if (!post) {
-      throw new NotFoundException('Post not found');
+      throw new NotFoundException(ERROR_MESSAGES.POST_NOT_FOUND);
     }
 
-    if (post.isArchived) {
+    if (post.isArchived || !post.profile.isPublic) {
       const currentProfile = currentUserId
         ? await this.prisma.profile.findUnique({ where: { userId: currentUserId } })
         : null;
-      if (!currentProfile || post.profileId !== currentProfile.id) {
-        throw new NotFoundException('Post not found');
+      const isOwner = currentProfile?.id === post.profileId;
+
+      if (post.isArchived && !isOwner) {
+        throw new NotFoundException(ERROR_MESSAGES.POST_NOT_FOUND);
+      }
+
+      if (!post.profile.isPublic && !isOwner) {
+        if (!currentProfile) {
+          throw new ForbiddenException(ERROR_MESSAGES.PROFILE_IS_PRIVATE);
+        }
+        const isFollower = await this.prisma.profileFollow.findUnique({
+          where: {
+            profileId_followerId: {
+              profileId: post.profileId,
+              followerId: currentProfile.id,
+            },
+          },
+        });
+        if (!isFollower?.accepted) {
+          throw new ForbiddenException(ERROR_MESSAGES.PROFILE_IS_PRIVATE);
+        }
       }
     }
+
     return post;
   }
 
   async update(id: string, userId: string, dto: UpdatePostDto) {
     const { post } = await this.getPostAndCheckOwnership(id, userId);
     if (post.isArchived) {
-      throw new BadRequestException('Archived post cannot be modified');
+      throw new BadRequestException(ERROR_MESSAGES.ARCHIVED_POST_CANNOT_BE_MODIFIED);
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -123,7 +141,7 @@ export class PostsService {
         });
 
         if (assets.length !== dto.assetIds.length) {
-          throw new BadRequestException('One or more assets do not exist');
+          throw new BadRequestException(ERROR_MESSAGES.ASSETS_DO_NOT_EXIST);
         }
         await tx.postAsset.deleteMany({ where: { postId: id } });
         await tx.postAsset.createMany({
@@ -141,7 +159,14 @@ export class PostsService {
           content: dto.content,
         },
         include: {
-          profile: true,
+          profile: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              avatarUrl: true,
+            },
+          },
           postAssets: {
             include: {
               asset: true,
@@ -174,7 +199,7 @@ export class PostsService {
   }
 
   async findMyPosts(userId: string) {
-    const profile = await this.getProfileByUserId(userId);
+    const profile = await this.usersService.getProfileByUserId(userId);
 
     return this.prisma.post.findMany({
       where: { profileId: profile.id, isArchived: false },
@@ -191,7 +216,7 @@ export class PostsService {
   }
 
   async findMyArchivedPosts(userId: string) {
-    const profile = await this.getProfileByUserId(userId);
+    const profile = await this.usersService.getProfileByUserId(userId);
 
     return this.prisma.post.findMany({
       where: { profileId: profile.id, isArchived: true },
@@ -208,16 +233,16 @@ export class PostsService {
   }
 
   async getFeed(userId: string, query: PaginationQueryDto) {
-    const profile = await this.getProfileByUserId(userId);
+    const profile = await this.usersService.getProfileByUserId(userId);
     const follows = await this.prisma.profileFollow.findMany({
       where: { followerId: profile.id, accepted: true },
       select: { profileId: true },
     });
 
-    const authorIds = follows.map((f) => f.profileId);
-    if (authorIds.length === 0) {
+    if (follows.length === 0) {
       return createPaginatedResponse([], 0, query);
     }
+    const authorIds = follows.map((f) => f.profileId);
 
     const { skip, take } = getPaginationOffsets(query);
 
@@ -228,7 +253,7 @@ export class PostsService {
       isArchived: false,
     };
 
-    const [total, items] = await this.prisma.$transaction([
+    const [total, items] = await Promise.all([
       this.prisma.post.count({ where }),
       this.prisma.post.findMany({
         where,
@@ -253,7 +278,7 @@ export class PostsService {
   }
 
   async search(userId: string, searchDto: SearchPostDto) {
-    const profile = await this.getProfileByUserId(userId);
+    const profile = await this.usersService.getProfileByUserId(userId);
     const follows = await this.prisma.profileFollow.findMany({
       where: { followerId: profile.id, accepted: true },
       select: { profileId: true },
@@ -276,7 +301,7 @@ export class PostsService {
 
     const { skip, take } = getPaginationOffsets(searchDto);
 
-    const [total, items] = await this.prisma.$transaction([
+    const [total, items] = await Promise.all([
       this.prisma.post.count({ where }),
       this.prisma.post.findMany({
         where,

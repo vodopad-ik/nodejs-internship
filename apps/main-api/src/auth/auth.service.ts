@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ERROR_MESSAGES } from '../common/constants/messages.constants';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
@@ -20,7 +21,7 @@ export class AuthService {
         where: { username: dto.username },
       });
       if (existingProfile) {
-        throw new BadRequestException('Username is already taken');
+        throw new BadRequestException(ERROR_MESSAGES.USERNAME_ALREADY_TAKEN);
       }
     }
 
@@ -34,7 +35,9 @@ export class AuthService {
 
     const data = await res.json();
     if (!res.ok) {
-      throw new BadRequestException(data.error || data.message || 'Registration failed');
+      throw new BadRequestException(
+        data.error || data.message || ERROR_MESSAGES.REGISTRATION_FAILED,
+      );
     }
 
     const emailUsername = dto.email.split('@')[0] ?? 'user';
@@ -60,7 +63,9 @@ export class AuthService {
 
     const data = await res.json();
     if (!res.ok) {
-      throw new UnauthorizedException(data.error || data.message || 'Invalid credentials');
+      throw new UnauthorizedException(
+        data.error || data.message || ERROR_MESSAGES.INVALID_CREDENTIALS,
+      );
     }
     return data;
   }
@@ -76,7 +81,7 @@ export class AuthService {
 
     const data = await res.json();
     if (!res.ok) {
-      throw new UnauthorizedException(data.message || 'Invalid or expired token');
+      throw new UnauthorizedException(data.message || ERROR_MESSAGES.INVALID_OR_EXPIRED_TOKEN);
     }
     return data;
   }
@@ -92,7 +97,7 @@ export class AuthService {
 
     const data = await res.json();
     if (!res.ok) {
-      throw new UnauthorizedException(data.error || 'Failed to refresh token');
+      throw new UnauthorizedException(data.error || ERROR_MESSAGES.FAILED_TO_REFRESH_TOKEN);
     }
     return data;
   }
@@ -108,7 +113,7 @@ export class AuthService {
 
     const data = await res.json();
     if (!res.ok) {
-      throw new BadRequestException(data.error || 'Logout failed');
+      throw new BadRequestException(data.error || ERROR_MESSAGES.LOGOUT_FAILED);
     }
     return data;
   }
@@ -117,7 +122,7 @@ export class AuthService {
     const res = await fetch(`${this.authServiceUrl}/oauth/initiate?provider=${provider}`);
     const data = (await res.json()) as { url?: string; error?: string };
     if (!res.ok || !data.url) {
-      throw new BadRequestException(data.error || 'Failed to initiate OAuth');
+      throw new BadRequestException(data.error || ERROR_MESSAGES.FAILED_TO_INITIATE_OAUTH);
     }
     return data.url;
   }
@@ -133,7 +138,7 @@ export class AuthService {
 
     const data = await res.json();
     if (!res.ok) {
-      throw new BadRequestException(data.error || 'Failed to exchange OAuth code');
+      throw new BadRequestException(data.error || ERROR_MESSAGES.FAILED_TO_EXCHANGE_OAUTH_CODE);
     }
 
     const existingUser = await this.usersService.findOne(data.user.id).catch(() => null);
@@ -148,8 +153,10 @@ export class AuthService {
         id: data.user.id,
         email: data.user.email,
         username,
+        displayName: data.user.displayName,
       });
     }
+
     return data;
   }
 }
