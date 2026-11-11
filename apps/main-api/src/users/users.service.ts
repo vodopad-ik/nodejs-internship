@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, User } from '@prisma/client';
+import { ERROR_MESSAGES } from '../common/constants/messages.constants';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 
@@ -12,7 +13,7 @@ export class UsersService {
       where: { userId },
     });
     if (!profile) {
-      throw new NotFoundException('Profile not found');
+      throw new NotFoundException(ERROR_MESSAGES.PROFILE_NOT_FOUND);
     }
     return profile;
   }
@@ -48,7 +49,7 @@ export class UsersService {
       where: { id },
     });
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(ERROR_MESSAGES.USER_NOT_FOUND);
     }
     return user;
   }

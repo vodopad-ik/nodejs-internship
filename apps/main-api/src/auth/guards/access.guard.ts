@@ -1,4 +1,5 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ERROR_MESSAGES } from '../../common/constants/messages.constants';
 import { AuthService } from '../auth.service';
 
 @Injectable()
@@ -8,12 +9,12 @@ export class AccessGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers.authorization;
     if (!authHeader) {
-      throw new UnauthorizedException('Authorization header is missing');
+      throw new UnauthorizedException(ERROR_MESSAGES.AUTH_HEADER_MISSING);
     }
 
     const [bearer, token] = authHeader.split(' ');
     if (bearer !== 'Bearer' || !token) {
-      throw new UnauthorizedException('Invalid token format');
+      throw new UnauthorizedException(ERROR_MESSAGES.INVALID_TOKEN_FORMAT);
     }
 
     try {
@@ -21,7 +22,7 @@ export class AccessGuard implements CanActivate {
       request.user = payload;
       return true;
     } catch {
-      throw new UnauthorizedException('Invalid or expired token');
+      throw new UnauthorizedException(ERROR_MESSAGES.INVALID_OR_EXPIRED_TOKEN);
     }
   }
 }

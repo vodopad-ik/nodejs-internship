@@ -6,11 +6,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, Profile } from '@prisma/client';
+import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../common/constants/messages.constants';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { createPaginatedResponse, getPaginationOffsets } from '../common/utils/pagination.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
-import { FollowResponseDto, FollowStatus } from './dto/follow-response.dto';
+import { toFollowResponseDto } from './mappers/follow.mapper';
 
 @Injectable()
 export class FollowsService {
@@ -20,18 +21,21 @@ export class FollowsService {
   ) {}
 
   private async assertCanViewProfile(targetProfile: Profile, currentUserId: string): Promise<void> {
-    if (targetProfile.isPublic) return;
+    if (targetProfile.isPublic) {
+      return;
+    }
 
     const currentProfile = await this.usersService.getProfileByUserId(currentUserId);
-    if (currentProfile.id === targetProfile.id) return;
-
-    const follow = await this.prisma.profileFollow.findUnique({
-      where: {
-        profileId_followerId: { profileId: targetProfile.id, followerId: currentProfile.id },
-      },
-    });
-    if (!follow?.accepted) {
-      throw new ForbiddenException('This profile is private');
+    const isOwner = currentProfile.id === targetProfile.id;
+    if (!isOwner) {
+      const follow = await this.prisma.profileFollow.findUnique({
+        where: {
+          profileId_followerId: { profileId: targetProfile.id, followerId: currentProfile.id },
+        },
+      });
+      if (!follow?.accepted) {
+        throw new ForbiddenException(ERROR_MESSAGES.PROFILE_IS_PRIVATE);
+      }
     }
   }
 
@@ -39,7 +43,7 @@ export class FollowsService {
     const currentProfile = await this.usersService.getProfileByUserId(currentUserId);
 
     if (currentProfile.id === targetProfileId) {
-      throw new BadRequestException('You cannot follow yourself');
+      throw new BadRequestException(ERROR_MESSAGES.CANNOT_FOLLOW_SELF);
     }
 
     const targetProfile = await this.prisma.profile.findUnique({
@@ -47,7 +51,7 @@ export class FollowsService {
     });
 
     if (!targetProfile) {
-      throw new NotFoundException('Target profile not found');
+      throw new NotFoundException(ERROR_MESSAGES.TARGET_PROFILE_NOT_FOUND);
     }
 
     const existing = await this.prisma.profileFollow.findUnique({
@@ -58,9 +62,9 @@ export class FollowsService {
 
     if (existing) {
       if (existing.accepted) {
-        throw new ConflictException('You are already following this profile');
+        throw new ConflictException(ERROR_MESSAGES.ALREADY_FOLLOWING);
       }
-      throw new ConflictException('Follow request is already pending');
+      throw new ConflictException(ERROR_MESSAGES.FOLLOW_REQUEST_PENDING);
     }
 
     const follow = await this.prisma.profileFollow.create({
@@ -71,14 +75,7 @@ export class FollowsService {
       },
     });
 
-    const followResponse = new FollowResponseDto();
-    followResponse.status = targetProfile.isPublic
-      ? FollowStatus.FOLLOWING
-      : FollowStatus.REQUESTED;
-    followResponse.profileId = follow.profileId;
-    followResponse.followerId = follow.followerId;
-    followResponse.accepted = follow.accepted;
-    return followResponse;
+    return toFollowResponseDto(follow, targetProfile.isPublic);
   }
 
   async unfollow(currentUserId: string, targetProfileId: string) {
@@ -92,10 +89,10 @@ export class FollowsService {
           },
         },
       });
-      return { message: 'Successfully unfollowed' };
+      return { message: SUCCESS_MESSAGES.UNFOLLOWED };
     } catch (error: unknown) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        throw new NotFoundException('Follow relationship not found');
+        throw new NotFoundException(ERROR_MESSAGES.FOLLOW_NOT_FOUND);
       }
       throw error;
     }
@@ -112,10 +109,10 @@ export class FollowsService {
           },
         },
       });
-      return { message: 'Follower successfully removed' };
+      return { message: SUCCESS_MESSAGES.FOLLOWER_REMOVED };
     } catch (error: unknown) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        throw new NotFoundException('Follower relationship not found');
+        throw new NotFoundException(ERROR_MESSAGES.FOLLOWER_NOT_FOUND);
       }
       throw error;
     }
@@ -124,7 +121,7 @@ export class FollowsService {
   async getFollowers(profileId: string, currentUserId: string, query: PaginationQueryDto) {
     const targetProfile = await this.prisma.profile.findUnique({ where: { id: profileId } });
     if (!targetProfile) {
-      throw new NotFoundException('Profile not found');
+      throw new NotFoundException(ERROR_MESSAGES.PROFILE_NOT_FOUND);
     }
 
     await this.assertCanViewProfile(targetProfile, currentUserId);
@@ -132,7 +129,7 @@ export class FollowsService {
     const { skip, take } = getPaginationOffsets(query);
     const where = { profileId, accepted: true };
 
-    const [total, items] = await this.prisma.$transaction([
+    const [total, items] = await Promise.all([
       this.prisma.profileFollow.count({ where }),
       this.prisma.profileFollow.findMany({
         where,
@@ -153,7 +150,7 @@ export class FollowsService {
   async getFollowing(profileId: string, currentUserId: string, query: PaginationQueryDto) {
     const targetProfile = await this.prisma.profile.findUnique({ where: { id: profileId } });
     if (!targetProfile) {
-      throw new NotFoundException('Profile not found');
+      throw new NotFoundException(ERROR_MESSAGES.PROFILE_NOT_FOUND);
     }
 
     await this.assertCanViewProfile(targetProfile, currentUserId);
@@ -161,7 +158,7 @@ export class FollowsService {
     const { skip, take } = getPaginationOffsets(query);
     const where = { followerId: profileId, accepted: true };
 
-    const [total, items] = await this.prisma.$transaction([
+    const [total, items] = await Promise.all([
       this.prisma.profileFollow.count({ where }),
       this.prisma.profileFollow.findMany({
         where,
@@ -185,7 +182,7 @@ export class FollowsService {
     const { skip, take } = getPaginationOffsets(query);
     const where = { profileId: currentProfile.id, accepted: false };
 
-    const [total, items] = await this.prisma.$transaction([
+    const [total, items] = await Promise.all([
       this.prisma.profileFollow.count({ where }),
       this.prisma.profileFollow.findMany({
         where,
@@ -209,7 +206,7 @@ export class FollowsService {
     const { skip, take } = getPaginationOffsets(query);
     const where = { followerId: currentProfile.id, accepted: false };
 
-    const [total, items] = await this.prisma.$transaction([
+    const [total, items] = await Promise.all([
       this.prisma.profileFollow.count({ where }),
       this.prisma.profileFollow.findMany({
         where,
@@ -236,10 +233,10 @@ export class FollowsService {
     const request = await this.prisma.profileFollow.findUnique({ where });
 
     if (!request) {
-      throw new NotFoundException('Follow request not found');
+      throw new NotFoundException(ERROR_MESSAGES.FOLLOW_REQUEST_NOT_FOUND);
     }
     if (request.accepted) {
-      throw new ConflictException('Follow request is already accepted');
+      throw new ConflictException(ERROR_MESSAGES.FOLLOW_REQUEST_ALREADY_ACCEPTED);
     }
 
     return this.prisma.profileFollow.update({
@@ -257,13 +254,13 @@ export class FollowsService {
     const request = await this.prisma.profileFollow.findUnique({ where });
 
     if (!request) {
-      throw new NotFoundException('Follow request not found');
+      throw new NotFoundException(ERROR_MESSAGES.FOLLOW_REQUEST_NOT_FOUND);
     }
     if (request.accepted) {
-      throw new BadRequestException('Cannot reject an already accepted follow request');
+      throw new BadRequestException(ERROR_MESSAGES.CANNOT_REJECT_ACCEPTED_REQUEST);
     }
 
     await this.prisma.profileFollow.delete({ where });
-    return { message: 'Follow request rejected' };
+    return { message: SUCCESS_MESSAGES.FOLLOW_REQUEST_REJECTED };
   }
 }

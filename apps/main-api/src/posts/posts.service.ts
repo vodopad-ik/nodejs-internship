@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { ERROR_MESSAGES } from '../common/constants/messages.constants';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { createPaginatedResponse, getPaginationOffsets } from '../common/utils/pagination.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -24,10 +25,10 @@ export class PostsService {
     const profile = await this.usersService.getProfileByUserId(userId);
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
     if (!post) {
-      throw new NotFoundException('Post not found');
+      throw new NotFoundException(ERROR_MESSAGES.POST_NOT_FOUND);
     }
     if (post.profileId !== profile.id) {
-      throw new ForbiddenException('You are not allowed to modify this post');
+      throw new ForbiddenException(ERROR_MESSAGES.NOT_ALLOWED_TO_MODIFY_POST);
     }
 
     return { post, profile };
@@ -37,7 +38,7 @@ export class PostsService {
     const profile = await this.usersService.getProfileByUserId(userId);
     const assets = await this.prisma.asset.findMany({ where: { id: { in: dto.assetIds } } });
     if (assets.length !== dto.assetIds.length) {
-      throw new BadRequestException('One or more assets do not exist');
+      throw new BadRequestException(ERROR_MESSAGES.ASSETS_DO_NOT_EXIST);
     }
 
     return this.prisma.post.create({
@@ -91,21 +92,23 @@ export class PostsService {
     });
 
     if (!post) {
-      throw new NotFoundException('Post not found');
+      throw new NotFoundException(ERROR_MESSAGES.POST_NOT_FOUND);
     }
 
-    if (!post.profile.isPublic) {
-      if (!currentUserId) {
-        throw new ForbiddenException('This profile is private');
+    if (post.isArchived || !post.profile.isPublic) {
+      const currentProfile = currentUserId
+        ? await this.prisma.profile.findUnique({ where: { userId: currentUserId } })
+        : null;
+      const isOwner = currentProfile?.id === post.profileId;
+
+      if (post.isArchived && !isOwner) {
+        throw new NotFoundException(ERROR_MESSAGES.POST_NOT_FOUND);
       }
-      const currentProfile = await this.prisma.profile.findUnique({
-        where: { userId: currentUserId },
-      });
-      if (!currentProfile) {
-        throw new NotFoundException('Profile not found');
-      }
-      const isOwner = currentProfile.id === post.profileId;
-      if (!isOwner) {
+
+      if (!post.profile.isPublic && !isOwner) {
+        if (!currentProfile) {
+          throw new ForbiddenException(ERROR_MESSAGES.PROFILE_IS_PRIVATE);
+        }
         const isFollower = await this.prisma.profileFollow.findUnique({
           where: {
             profileId_followerId: {
@@ -115,7 +118,7 @@ export class PostsService {
           },
         });
         if (!isFollower?.accepted) {
-          throw new ForbiddenException('This profile is private');
+          throw new ForbiddenException(ERROR_MESSAGES.PROFILE_IS_PRIVATE);
         }
       }
     }
@@ -126,7 +129,7 @@ export class PostsService {
   async update(id: string, userId: string, dto: UpdatePostDto) {
     const { post } = await this.getPostAndCheckOwnership(id, userId);
     if (post.isArchived) {
-      throw new BadRequestException('Archived post cannot be modified');
+      throw new BadRequestException(ERROR_MESSAGES.ARCHIVED_POST_CANNOT_BE_MODIFIED);
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -138,7 +141,7 @@ export class PostsService {
         });
 
         if (assets.length !== dto.assetIds.length) {
-          throw new BadRequestException('One or more assets do not exist');
+          throw new BadRequestException(ERROR_MESSAGES.ASSETS_DO_NOT_EXIST);
         }
         await tx.postAsset.deleteMany({ where: { postId: id } });
         await tx.postAsset.createMany({
@@ -250,7 +253,7 @@ export class PostsService {
       isArchived: false,
     };
 
-    const [total, items] = await this.prisma.$transaction([
+    const [total, items] = await Promise.all([
       this.prisma.post.count({ where }),
       this.prisma.post.findMany({
         where,
@@ -298,7 +301,7 @@ export class PostsService {
 
     const { skip, take } = getPaginationOffsets(searchDto);
 
-    const [total, items] = await this.prisma.$transaction([
+    const [total, items] = await Promise.all([
       this.prisma.post.count({ where }),
       this.prisma.post.findMany({
         where,
