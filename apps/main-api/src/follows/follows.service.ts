@@ -75,7 +75,7 @@ export class FollowsService {
       },
     });
 
-    return toFollowResponseDto(follow, targetProfile.isPublic);
+    return toFollowResponseDto(follow);
   }
 
   async unfollow(currentUserId: string, targetProfileId: string) {
