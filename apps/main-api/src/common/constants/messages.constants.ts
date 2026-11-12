@@ -26,10 +26,14 @@ export const ERROR_MESSAGES = {
   FAILED_TO_EXCHANGE_OAUTH_CODE: 'Failed to exchange OAuth code',
   AUTH_HEADER_MISSING: 'Authorization header is missing',
   INVALID_TOKEN_FORMAT: 'Invalid token format',
+  POST_ALREADY_LIKED: 'You have already liked this post',
+  POST_LIKE_NOT_FOUND: 'Post like not found',
 } as const;
 
 export const SUCCESS_MESSAGES = {
   UNFOLLOWED: 'Successfully unfollowed',
   FOLLOWER_REMOVED: 'Follower successfully removed',
   FOLLOW_REQUEST_REJECTED: 'Follow request rejected',
+  POST_LIKED: 'Post liked successfully',
+  POST_UNLIKED: 'Post unliked successfully',
 } as const;
