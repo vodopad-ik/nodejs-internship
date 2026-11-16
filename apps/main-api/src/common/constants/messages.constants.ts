@@ -28,6 +28,12 @@ export const ERROR_MESSAGES = {
   INVALID_TOKEN_FORMAT: 'Invalid token format',
   POST_ALREADY_LIKED: 'You have already liked this post',
   POST_LIKE_NOT_FOUND: 'Post like not found',
+  COMMENT_NOT_FOUND: 'Comment not found',
+  PARENT_COMMENT_NOT_FOUND: 'Parent comment not found',
+  PARENT_COMMENT_WRONG_POST: 'Parent comment does not belong to this post',
+  NOT_ALLOWED_TO_MODIFY_COMMENT: 'You are not allowed to modify this comment',
+  COMMENT_ALREADY_LIKED: 'You have already liked this comment',
+  COMMENT_LIKE_NOT_FOUND: 'Comment like not found',
 } as const;
 
 export const SUCCESS_MESSAGES = {
@@ -36,4 +42,6 @@ export const SUCCESS_MESSAGES = {
   FOLLOW_REQUEST_REJECTED: 'Follow request rejected',
   POST_LIKED: 'Post liked successfully',
   POST_UNLIKED: 'Post unliked successfully',
+  COMMENT_LIKED: 'Comment liked successfully',
+  COMMENT_UNLIKED: 'Comment unliked successfully',
 } as const;
