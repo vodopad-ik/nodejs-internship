@@ -56,27 +56,62 @@ export class PostsController {
     return this.postsService.findMyArchivedPosts(userId);
   }
 
+  @Get('my/liked')
+  @ApiOperation({ summary: 'Get paginated list of posts liked by current user' })
+  @ApiOkResponse({ description: 'Paginated list of liked posts' })
+  async findMyLikedPosts(@CurrentUserId() userId: string, @Query() query: PaginationQueryDto) {
+    return this.postsService.findMyLikedPosts(userId, query);
+  }
+
   @Get('feed')
   @ApiOperation({ summary: 'Get user feed based on follows' })
   @ApiOkResponse({ description: 'Paginated feed posts' })
-  getFeed(@CurrentUserId() userId: string, @Query() query: PaginationQueryDto) {
+  async getFeed(@CurrentUserId() userId: string, @Query() query: PaginationQueryDto) {
     return this.postsService.getFeed(userId, query);
   }
 
   @Get('search')
   @ApiOperation({ summary: 'Search posts by content query' })
   @ApiOkResponse({ description: 'Paginated search results' })
-  search(@CurrentUserId() userId: string, @Query() searchDto: SearchPostDto) {
+  async search(@CurrentUserId() userId: string, @Query() searchDto: SearchPostDto) {
     return this.postsService.search(userId, searchDto);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get post by id' })
+  @ApiOperation({ summary: 'Get single post by id' })
   @ApiParam({ name: 'id', description: 'Post ID' })
-  @ApiOkResponse({ description: 'Post found successfully' })
-  @ApiNotFoundResponse({ description: 'Post not found or is archived' })
-  async findOnePost(@Param('id') id: string, @CurrentUserId() currentUserId?: string) {
-    return this.postsService.findOne(id, currentUserId);
+  @ApiOkResponse({ description: 'Post details' })
+  @ApiNotFoundResponse({ description: 'Post not found' })
+  async findOnePost(@Param('id') id: string, @CurrentUserId() userId: string) {
+    return this.postsService.findOne(id, userId);
+  }
+
+  @Get(':id/likes')
+  @ApiOperation({ summary: 'Get paginated list of users who liked the post' })
+  @ApiParam({ name: 'id', description: 'Post ID' })
+  @ApiOkResponse({ description: 'Paginated list of users who liked the post' })
+  async getPostLikes(
+    @Param('id') id: string,
+    @CurrentUserId() userId: string,
+    @Query() query: PaginationQueryDto,
+  ) {
+    return this.postsService.getPostLikes(id, userId, query);
+  }
+
+  @Post(':id/like')
+  @ApiOperation({ summary: 'Like a post by id' })
+  @ApiParam({ name: 'id', description: 'Post ID' })
+  @ApiOkResponse({ description: 'Post liked successfully' })
+  async likePost(@Param('id') id: string, @CurrentUserId() userId: string) {
+    return this.postsService.likePost(id, userId);
+  }
+
+  @Delete(':id/like')
+  @ApiOperation({ summary: 'Unlike a post by id' })
+  @ApiParam({ name: 'id', description: 'Post ID' })
+  @ApiOkResponse({ description: 'Post unliked successfully' })
+  async unlikePost(@Param('id') id: string, @CurrentUserId() userId: string) {
+    return this.postsService.unlikePost(id, userId);
   }
 
   @Patch(':id')
@@ -96,9 +131,6 @@ export class PostsController {
   @Delete(':id')
   @ApiOperation({ summary: 'Delete post by id' })
   @ApiParam({ name: 'id', description: 'Post ID' })
-  @ApiOkResponse({ description: 'Post deleted successfully' })
-  @ApiForbiddenResponse({ description: 'You are not allowed to modify this post' })
-  @ApiNotFoundResponse({ description: 'Post not found' })
   async removePost(@Param('id') id: string, @CurrentUserId() userId: string) {
     return this.postsService.remove(id, userId);
   }
