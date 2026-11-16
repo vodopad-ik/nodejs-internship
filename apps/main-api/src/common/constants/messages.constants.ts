@@ -34,6 +34,7 @@ export const ERROR_MESSAGES = {
   NOT_ALLOWED_TO_MODIFY_COMMENT: 'You are not allowed to modify this comment',
   COMMENT_ALREADY_LIKED: 'You have already liked this comment',
   COMMENT_LIKE_NOT_FOUND: 'Comment like not found',
+  NOT_ALLOWED_TO_MODIFY_USER: 'You are not allowed to modify this user',
 } as const;
 
 export const SUCCESS_MESSAGES = {

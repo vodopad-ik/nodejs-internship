@@ -10,11 +10,15 @@ export function extractMentionUsernames(content: string): string[] {
 
   for (const match of matches) {
     let username = match[1];
-    if (!username) continue;
+    if (!username) {
+      continue;
+    }
     while (username.endsWith('.')) {
       username = username.slice(0, -1);
     }
-    if (!username.length) continue;
+    if (!username.length) {
+      continue;
+    }
 
     usernames.add(username.toLowerCase());
   }

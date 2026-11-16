@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../common/constants/messages.constants';
+import { PROFILE_PREVIEW_SELECT } from '../common/constants/prisma-selects.constants';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { createPaginatedResponse, getPaginationOffsets } from '../common/utils/pagination.util';
 import { PostsService } from '../posts/posts.service';
@@ -28,12 +29,7 @@ export class CommentsService {
   private getCommentInclude(currentProfileId: string) {
     return {
       profile: {
-        select: {
-          id: true,
-          username: true,
-          displayName: true,
-          avatarUrl: true,
-        },
+        select: PROFILE_PREVIEW_SELECT,
       },
       _count: {
         select: {
@@ -59,7 +55,7 @@ export class CommentsService {
 
     const profiles = await this.prisma.profile.findMany({
       where: { username: { in: Array.from(uniqueUsernames), mode: 'insensitive' } },
-      select: { id: true, username: true, displayName: true, avatarUrl: true },
+      select: PROFILE_PREVIEW_SELECT,
     });
 
     const mentionsMap = new Map<string, MentionProfile>();
@@ -135,7 +131,7 @@ export class CommentsService {
     await this.postsService.getAccessiblePost(postId, currentProfile.id);
 
     const { skip, take } = getPaginationOffsets(query);
-    const where = { postId, parentCommentId: null };
+    const where: Prisma.CommentWhereInput = { postId, parentCommentId: null };
 
     const [total, items] = await Promise.all([
       this.prisma.comment.count({ where }),
@@ -147,6 +143,7 @@ export class CommentsService {
         include: this.getCommentInclude(currentProfile.id),
       }),
     ]);
+
     const mentionsMap = await this.buildMentionsMap(items.map((item) => item.content));
     const comments = items.map((item) => toCommentResponse(item, mentionsMap));
     return createPaginatedResponse(comments, total, query);
@@ -155,8 +152,9 @@ export class CommentsService {
   async findReplies(commentId: string, userId: string, query: PaginationQueryDto) {
     const currentProfile = await this.usersService.getProfileByUserId(userId);
     await this.getCommentWithAccessCheck(commentId, currentProfile.id);
+
     const { skip, take } = getPaginationOffsets(query);
-    const where = { parentCommentId: commentId };
+    const where: Prisma.CommentWhereInput = { parentCommentId: commentId };
 
     const [total, items] = await Promise.all([
       this.prisma.comment.count({ where }),
@@ -201,6 +199,7 @@ export class CommentsService {
     if (post.isArchived) {
       throw new BadRequestException(ERROR_MESSAGES.ARCHIVED_POST_CANNOT_BE_MODIFIED);
     }
+
     const existingLike = await this.prisma.commentLike.findUnique({
       where: { commentId_profileId: { commentId, profileId: currentProfile.id } },
     });
@@ -208,6 +207,7 @@ export class CommentsService {
     if (existingLike) {
       throw new ConflictException(ERROR_MESSAGES.COMMENT_ALREADY_LIKED);
     }
+
     await this.prisma.commentLike.create({ data: { commentId, profileId: currentProfile.id } });
     return { message: SUCCESS_MESSAGES.COMMENT_LIKED };
   }
@@ -232,7 +232,7 @@ export class CommentsService {
     await this.getCommentWithAccessCheck(commentId, currentProfile.id);
 
     const { skip, take } = getPaginationOffsets(query);
-    const where = {
+    const where: Prisma.CommentLikeWhereInput = {
       commentId,
     };
 
@@ -244,7 +244,7 @@ export class CommentsService {
         take,
         orderBy: { createdAt: 'desc' },
         include: {
-          profile: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
+          profile: { select: PROFILE_PREVIEW_SELECT },
         },
       }),
     ]);

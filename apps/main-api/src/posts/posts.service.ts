@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../common/constants/messages.constants';
+import { PROFILE_PREVIEW_SELECT } from '../common/constants/prisma-selects.constants';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { createPaginatedResponse, getPaginationOffsets } from '../common/utils/pagination.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -24,16 +25,16 @@ export class PostsService {
   ) {}
 
   private async getPostAndCheckOwnership(postId: string, userId: string) {
-    const profile = await this.usersService.getProfileByUserId(userId);
+    const currentProfile = await this.usersService.getProfileByUserId(userId);
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
     if (!post) {
       throw new NotFoundException(ERROR_MESSAGES.POST_NOT_FOUND);
     }
-    if (post.profileId !== profile.id) {
+    if (post.profileId !== currentProfile.id) {
       throw new ForbiddenException(ERROR_MESSAGES.NOT_ALLOWED_TO_MODIFY_POST);
     }
 
-    return { post, profile };
+    return { post, currentProfile };
   }
 
   private async getAcceptedFollowingIds(followerId: string): Promise<string[]> {
@@ -45,7 +46,7 @@ export class PostsService {
     return follows.map((follow) => follow.profileId);
   }
 
-  private async getVisiblePostsWhere(currentProfileId: string): Promise<Prisma.PostWhereInput> {
+  private async getVisiblePostsFilter(currentProfileId: string): Promise<Prisma.PostWhereInput> {
     const authorIds = await this.getAcceptedFollowingIds(currentProfileId);
 
     return {
@@ -62,10 +63,7 @@ export class PostsService {
     return {
       profile: {
         select: {
-          id: true,
-          username: true,
-          displayName: true,
-          avatarUrl: true,
+          ...PROFILE_PREVIEW_SELECT,
           isPublic: true,
         },
       },
@@ -103,7 +101,7 @@ export class PostsService {
     }
 
     if (!post.profile.isPublic && !isOwner) {
-      const isFollower = await this.prisma.profileFollow.findUnique({
+      const follow = await this.prisma.profileFollow.findUnique({
         where: {
           profileId_followerId: {
             profileId: post.profileId,
@@ -111,7 +109,7 @@ export class PostsService {
           },
         },
       });
-      if (!isFollower?.accepted) {
+      if (!follow?.accepted) {
         throw new ForbiddenException(ERROR_MESSAGES.PROFILE_IS_PRIVATE);
       }
     }
@@ -120,7 +118,7 @@ export class PostsService {
   }
 
   async create(userId: string, dto: CreatePostDto) {
-    const profile = await this.usersService.getProfileByUserId(userId);
+    const currentProfile = await this.usersService.getProfileByUserId(userId);
     const assets = await this.prisma.asset.findMany({ where: { id: { in: dto.assetIds } } });
     if (assets.length !== dto.assetIds.length) {
       throw new BadRequestException(ERROR_MESSAGES.ASSETS_DO_NOT_EXIST);
@@ -129,7 +127,7 @@ export class PostsService {
     const post = await this.prisma.post.create({
       data: {
         content: dto.content,
-        profileId: profile.id,
+        profileId: currentProfile.id,
         postAssets: {
           create: dto.assetIds.map((assetId, orderIndex) => ({
             assetId,
@@ -137,7 +135,7 @@ export class PostsService {
           })),
         },
       },
-      include: this.getPostInclude(profile.id),
+      include: this.getPostInclude(currentProfile.id),
     });
 
     return toPostResponse(post);
@@ -150,7 +148,7 @@ export class PostsService {
   }
 
   async update(id: string, userId: string, dto: UpdatePostDto) {
-    const { post, profile } = await this.getPostAndCheckOwnership(id, userId);
+    const { post, currentProfile } = await this.getPostAndCheckOwnership(id, userId);
     if (post.isArchived) {
       throw new BadRequestException(ERROR_MESSAGES.ARCHIVED_POST_CANNOT_BE_MODIFIED);
     }
@@ -181,7 +179,7 @@ export class PostsService {
         data: {
           content: dto.content,
         },
-        include: this.getPostInclude(profile.id),
+        include: this.getPostInclude(currentProfile.id),
       });
 
       return toPostResponse(updatedPost);
@@ -195,46 +193,46 @@ export class PostsService {
   }
 
   async archivePost(id: string, userId: string) {
-    const { profile } = await this.getPostAndCheckOwnership(id, userId);
+    const { currentProfile } = await this.getPostAndCheckOwnership(id, userId);
 
     const archivedPost = await this.prisma.post.update({
       where: { id },
       data: {
         isArchived: true,
       },
-      include: this.getPostInclude(profile.id),
+      include: this.getPostInclude(currentProfile.id),
     });
 
     return toPostResponse(archivedPost);
   }
 
   async findMyPosts(userId: string) {
-    const profile = await this.usersService.getProfileByUserId(userId);
+    const currentProfile = await this.usersService.getProfileByUserId(userId);
 
-    const posts = await this.prisma.post.findMany({
-      where: { profileId: profile.id, isArchived: false },
+    const items = await this.prisma.post.findMany({
+      where: { profileId: currentProfile.id, isArchived: false },
       orderBy: { createdAt: 'desc' },
-      include: this.getPostInclude(profile.id),
+      include: this.getPostInclude(currentProfile.id),
     });
 
-    return posts.map((post) => toPostResponse(post));
+    return items.map((post) => toPostResponse(post));
   }
 
   async findMyArchivedPosts(userId: string) {
-    const profile = await this.usersService.getProfileByUserId(userId);
+    const currentProfile = await this.usersService.getProfileByUserId(userId);
 
-    const posts = await this.prisma.post.findMany({
-      where: { profileId: profile.id, isArchived: true },
+    const items = await this.prisma.post.findMany({
+      where: { profileId: currentProfile.id, isArchived: true },
       orderBy: { createdAt: 'desc' },
-      include: this.getPostInclude(profile.id),
+      include: this.getPostInclude(currentProfile.id),
     });
 
-    return posts.map((post) => toPostResponse(post));
+    return items.map((post) => toPostResponse(post));
   }
 
   async getFeed(userId: string, query: PaginationQueryDto) {
-    const profile = await this.usersService.getProfileByUserId(userId);
-    const authorIds = await this.getAcceptedFollowingIds(profile.id);
+    const currentProfile = await this.usersService.getProfileByUserId(userId);
+    const authorIds = await this.getAcceptedFollowingIds(currentProfile.id);
 
     if (authorIds.length === 0) {
       return createPaginatedResponse([], 0, query);
@@ -242,7 +240,7 @@ export class PostsService {
 
     const { skip, take } = getPaginationOffsets(query);
 
-    const where = {
+    const where: Prisma.PostWhereInput = {
       profileId: {
         in: authorIds,
       },
@@ -256,20 +254,20 @@ export class PostsService {
         skip,
         take,
         orderBy: { createdAt: 'desc' },
-        include: this.getPostInclude(profile.id),
+        include: this.getPostInclude(currentProfile.id),
       }),
     ]);
 
-    const responseItems = items.map((item) => toPostResponse(item));
-    return createPaginatedResponse(responseItems, total, query);
+    const posts = items.map((post) => toPostResponse(post));
+    return createPaginatedResponse(posts, total, query);
   }
 
   async search(userId: string, searchDto: SearchPostDto) {
-    const profile = await this.usersService.getProfileByUserId(userId);
-    const visiblePostsWhere = await this.getVisiblePostsWhere(profile.id);
+    const currentProfile = await this.usersService.getProfileByUserId(userId);
+    const visibleFilter = await this.getVisiblePostsFilter(currentProfile.id);
 
     const where: Prisma.PostWhereInput = {
-      ...visiblePostsWhere,
+      ...visibleFilter,
       content: {
         contains: searchDto.query,
         mode: 'insensitive',
@@ -285,12 +283,12 @@ export class PostsService {
         skip,
         take,
         orderBy: { createdAt: 'desc' },
-        include: this.getPostInclude(profile.id),
+        include: this.getPostInclude(currentProfile.id),
       }),
     ]);
 
-    const responseItems = items.map((item) => toPostResponse(item));
-    return createPaginatedResponse(responseItems, total, searchDto);
+    const posts = items.map((post) => toPostResponse(post));
+    return createPaginatedResponse(posts, total, searchDto);
   }
 
   async likePost(postId: string, userId: string) {
@@ -333,7 +331,7 @@ export class PostsService {
     await this.getAccessiblePost(postId, currentProfile.id);
 
     const { skip, take } = getPaginationOffsets(query);
-    const where = { postId };
+    const where: Prisma.PostLikeWhereInput = { postId };
 
     const [total, items] = await Promise.all([
       this.prisma.postLike.count({ where }),
@@ -343,7 +341,7 @@ export class PostsService {
         take,
         orderBy: { createdAt: 'desc' },
         include: {
-          profile: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
+          profile: { select: PROFILE_PREVIEW_SELECT },
         },
       }),
     ]);
@@ -353,12 +351,12 @@ export class PostsService {
 
   async findMyLikedPosts(userId: string, query: PaginationQueryDto) {
     const currentProfile = await this.usersService.getProfileByUserId(userId);
-    const visiblePostsWhere = await this.getVisiblePostsWhere(currentProfile.id);
+    const visibleFilter = await this.getVisiblePostsFilter(currentProfile.id);
 
     const { skip, take } = getPaginationOffsets(query);
     const where: Prisma.PostLikeWhereInput = {
       profileId: currentProfile.id,
-      posts: visiblePostsWhere,
+      post: visibleFilter,
     };
 
     const [total, items] = await Promise.all([
@@ -368,21 +366,21 @@ export class PostsService {
         skip,
         take,
         orderBy: { createdAt: 'desc' },
-        include: { posts: { include: this.getPostInclude(currentProfile.id) } },
+        include: { post: { include: this.getPostInclude(currentProfile.id) } },
       }),
     ]);
 
-    const posts = items.map((like) => toPostResponse(like.posts));
+    const posts = items.map((like) => toPostResponse(like.post));
     return createPaginatedResponse(posts, total, query);
   }
 
   async findMyCommentedPosts(userId: string, query: PaginationQueryDto) {
     const currentProfile = await this.usersService.getProfileByUserId(userId);
-    const visiblePostsWhere = await this.getVisiblePostsWhere(currentProfile.id);
+    const visibleFilter = await this.getVisiblePostsFilter(currentProfile.id);
 
     const { skip, take } = getPaginationOffsets(query);
     const where: Prisma.PostWhereInput = {
-      ...visiblePostsWhere,
+      ...visibleFilter,
       comments: { some: { profileId: currentProfile.id } },
     };
 

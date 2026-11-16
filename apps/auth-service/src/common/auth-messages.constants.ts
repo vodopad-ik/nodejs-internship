@@ -1,0 +1,16 @@
+export const AUTH_ERROR_MESSAGES = {
+  INTERNAL_SERVER_ERROR: 'Internal server error',
+  EMAIL_AND_PASSWORD_REQUIRED: 'Email and password are required',
+  ACCESS_TOKEN_REQUIRED: 'accessToken is required',
+  REFRESH_TOKEN_REQUIRED: 'refreshToken is required',
+  INVALID_OAUTH_PROVIDER: 'Valid provider (google or github) is required',
+  PROVIDER_AND_CODE_REQUIRED: 'provider and code are required',
+  USER_ALREADY_EXISTS: 'User already exists',
+  INVALID_CREDENTIALS: 'Invalid credentials',
+  TOKEN_REVOKED: 'Token is revoked',
+  INVALID_REFRESH_TOKEN: 'Invalid or expired refresh token',
+  USER_NOT_FOUND: 'User not found',
+  GOOGLE_TOKEN_FAILED: 'Failed to obtain access token from Google',
+  GITHUB_TOKEN_FAILED: 'Failed to obtain access token from GitHub',
+  GITHUB_EMAIL_MISSING: 'Could not retrieve email from GitHub',
+} as const;

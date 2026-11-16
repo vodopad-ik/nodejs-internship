@@ -1,26 +1,32 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+import { AppError } from '../common/app.error';
+import { AUTH_ERROR_MESSAGES } from '../common/auth-messages.constants';
 import { env } from '../config/env.config';
 import { User } from '../models/user.model';
 import { RedisAuthRepository } from '../repositories/redis-auth.repository';
 
 export class AuthService {
-  constructor(private redisAuthRepo: RedisAuthRepository = new RedisAuthRepository()) {}
+  constructor(private readonly redisAuthRepo: RedisAuthRepository = new RedisAuthRepository()) {}
 
   private async generateTokens(userId: string, email: string) {
     const tokenId = crypto.randomUUID();
-    const accessToken = jwt.sign({ userId, email }, env.jwt.accessSecret, { expiresIn: '15m' });
-    const refreshToken = jwt.sign({ userId, tokenId }, env.jwt.refreshSecret, { expiresIn: '7d' });
+    const accessToken = jwt.sign({ userId, email }, env.jwt.accessSecret, {
+      expiresIn: env.jwt.accessTtlSeconds,
+    });
+    const refreshToken = jwt.sign({ userId, tokenId }, env.jwt.refreshSecret, {
+      expiresIn: env.jwt.refreshTtlSeconds,
+    });
 
-    await this.redisAuthRepo.storeRefreshTokenId(userId, tokenId, 604800);
+    await this.redisAuthRepo.storeRefreshTokenId(userId, tokenId, env.jwt.refreshTtlSeconds);
     return { accessToken, refreshToken };
   }
 
   async register(email: string, password: string) {
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      throw new Error('User already exists');
+      throw new AppError(409, AUTH_ERROR_MESSAGES.USER_ALREADY_EXISTS);
     }
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({ email, password: hashedPassword });
@@ -37,11 +43,11 @@ export class AuthService {
   async login(email: string, password: string) {
     const user = await User.findOne({ email });
     if (!user) {
-      throw new Error('Invalid credentials');
+      throw new AppError(401, AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS);
     }
     const isPasswordValid = await bcrypt.compare(password, user.password || '');
     if (!isPasswordValid) {
-      throw new Error('Invalid credentials');
+      throw new AppError(401, AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS);
     }
     const tokens = await this.generateTokens(user._id.toString(), user.email);
 
@@ -58,7 +64,7 @@ export class AuthService {
     };
     const isBlacklisted = await this.redisAuthRepo.isTokenBlacklisted(accessToken);
     if (isBlacklisted) {
-      throw new Error('Token is revoked');
+      throw new AppError(401, AUTH_ERROR_MESSAGES.TOKEN_REVOKED);
     }
     return {
       valid: true,
@@ -73,13 +79,13 @@ export class AuthService {
     };
     const sessionUserId = await this.redisAuthRepo.findSessionByTokenId(payload.tokenId);
     if (!sessionUserId || sessionUserId !== payload.userId) {
-      throw new Error('Invalid refresh token');
+      throw new AppError(401, AUTH_ERROR_MESSAGES.INVALID_REFRESH_TOKEN);
     }
 
     await this.redisAuthRepo.deleteSession(payload.tokenId);
     const user = await User.findById(payload.userId);
     if (!user) {
-      throw new Error('User not found');
+      throw new AppError(404, AUTH_ERROR_MESSAGES.USER_NOT_FOUND);
     }
 
     return await this.generateTokens(user._id.toString(), user.email);
@@ -92,7 +98,7 @@ export class AuthService {
     }
 
     if (accessToken) {
-      await this.redisAuthRepo.blacklistToken(accessToken, 15 * 60);
+      await this.redisAuthRepo.blacklistToken(accessToken, env.jwt.accessTtlSeconds);
     }
     return { success: true };
   }
@@ -109,22 +115,23 @@ export class AuthService {
         prompt: 'consent',
       });
       return `${rootUrl}?${params.toString()}`;
-    } else {
-      const rootUrl = 'https://github.com/login/oauth/authorize';
-      const params = new URLSearchParams({
-        client_id: env.oauth.github.clientId,
-        redirect_uri: env.oauth.github.callbackUrl,
-        scope: 'user:email',
-      });
-      return `${rootUrl}?${params.toString()}`;
     }
+
+    const rootUrl = 'https://github.com/login/oauth/authorize';
+    const params = new URLSearchParams({
+      client_id: env.oauth.github.clientId,
+      redirect_uri: env.oauth.github.callbackUrl,
+      scope: 'user:email',
+    });
+    return `${rootUrl}?${params.toString()}`;
   }
 
   async exchangeCodeForTokens(provider: 'google' | 'github', code: string) {
-    let email, providerId;
+    let email: string;
+    let providerId: string;
 
     if (provider === 'google') {
-      const tokenData = (await fetch('https://oauth2.googleapis.com/token', {
+      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -134,17 +141,19 @@ export class AuthService {
           redirect_uri: env.oauth.google.callbackUrl,
           grant_type: 'authorization_code',
         }),
-      }).then((res) => res.json())) as { access_token?: string };
+      });
+      const tokenData = (await tokenResponse.json()) as { access_token?: string };
       if (!tokenData.access_token) {
-        throw new Error('Failed to obtain access token from Google');
+        throw new AppError(400, AUTH_ERROR_MESSAGES.GOOGLE_TOKEN_FAILED);
       }
-      const userData = (await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
+      const userResponse = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
         headers: { Authorization: `Bearer ${tokenData.access_token}` },
-      }).then((res) => res.json())) as { id: string; email: string };
+      });
+      const userData = (await userResponse.json()) as { id: string; email: string };
       email = userData.email;
       providerId = userData.id;
     } else {
-      const tokenData = (await fetch('https://github.com/login/oauth/access_token', {
+      const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
         method: 'POST',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -153,38 +162,41 @@ export class AuthService {
           client_secret: env.oauth.github.clientSecret,
           redirect_uri: env.oauth.github.callbackUrl,
         }),
-      }).then((res) => res.json())) as { access_token?: string };
+      });
+      const tokenData = (await tokenResponse.json()) as { access_token?: string };
 
       if (!tokenData.access_token) {
-        throw new Error('Failed to obtain access token from GitHub');
+        throw new AppError(400, AUTH_ERROR_MESSAGES.GITHUB_TOKEN_FAILED);
       }
 
-      const githubUser = (await fetch('https://api.github.com/user', {
+      const githubUserResponse = await fetch('https://api.github.com/user', {
         headers: {
           Authorization: `Bearer ${tokenData.access_token}`,
           'User-Agent': 'innogram-auth-service',
         },
-      }).then((res) => res.json())) as { id: string; email?: string };
+      });
+      const githubUser = (await githubUserResponse.json()) as { id: string; email?: string };
       providerId = String(githubUser.id);
       email = githubUser.email || '';
 
       if (!email) {
-        const emails = (await fetch('https://api.github.com/user/emails', {
+        const emailsResponse = await fetch('https://api.github.com/user/emails', {
           headers: {
             Authorization: `Bearer ${tokenData.access_token}`,
             'User-Agent': 'innogram-auth-service',
           },
-        }).then((res) => res.json())) as Array<{
+        });
+        const emails = (await emailsResponse.json()) as Array<{
           email: string;
           primary: boolean;
           verified: boolean;
         }>;
-        const primary = emails.find((e) => e.primary && e.verified) || emails[0];
+        const primary = emails.find((item) => item.primary && item.verified) || emails[0];
         if (primary) {
           email = primary.email;
         }
         if (!email) {
-          throw new Error('Could not retrieve email from GitHub');
+          throw new AppError(400, AUTH_ERROR_MESSAGES.GITHUB_EMAIL_MISSING);
         }
       }
     }

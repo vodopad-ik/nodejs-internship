@@ -233,7 +233,7 @@ model PostLike {
   createdAt DateTime @default(now()) @map("created_at")
 
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  posts   Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post    Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@id([postId, profileId])
   @@map("post_likes")

@@ -25,12 +25,12 @@ export function toCommentResponse<T extends CommentWithCountsAndLikes>(
   const mentionedUsernames = extractMentionUsernames(comment.content);
 
   const mentions: MentionProfile[] = [];
-  for (const username of mentionedUsernames) {
+  mentionedUsernames.forEach((username) => {
     const profile = mentionsMap.get(username);
     if (profile) {
       mentions.push(profile);
     }
-  }
+  });
 
   return {
     ...commentData,

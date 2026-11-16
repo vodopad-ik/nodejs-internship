@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, Profile } from '@prisma/client';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../common/constants/messages.constants';
+import { PROFILE_PREVIEW_SELECT } from '../common/constants/prisma-selects.constants';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { createPaginatedResponse, getPaginationOffsets } from '../common/utils/pagination.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -127,7 +128,7 @@ export class FollowsService {
     await this.assertCanViewProfile(targetProfile, currentUserId);
 
     const { skip, take } = getPaginationOffsets(query);
-    const where = { profileId, accepted: true };
+    const where: Prisma.ProfileFollowWhereInput = { profileId, accepted: true };
 
     const [total, items] = await Promise.all([
       this.prisma.profileFollow.count({ where }),
@@ -138,7 +139,7 @@ export class FollowsService {
         orderBy: { createdAt: 'desc' },
         include: {
           follower: {
-            select: { id: true, username: true, displayName: true, avatarUrl: true },
+            select: PROFILE_PREVIEW_SELECT,
           },
         },
       }),
@@ -156,7 +157,7 @@ export class FollowsService {
     await this.assertCanViewProfile(targetProfile, currentUserId);
 
     const { skip, take } = getPaginationOffsets(query);
-    const where = { followerId: profileId, accepted: true };
+    const where: Prisma.ProfileFollowWhereInput = { followerId: profileId, accepted: true };
 
     const [total, items] = await Promise.all([
       this.prisma.profileFollow.count({ where }),
@@ -167,7 +168,7 @@ export class FollowsService {
         orderBy: { createdAt: 'desc' },
         include: {
           following: {
-            select: { id: true, username: true, displayName: true, avatarUrl: true },
+            select: PROFILE_PREVIEW_SELECT,
           },
         },
       }),
@@ -180,7 +181,7 @@ export class FollowsService {
     const currentProfile = await this.usersService.getProfileByUserId(currentUserId);
 
     const { skip, take } = getPaginationOffsets(query);
-    const where = { profileId: currentProfile.id, accepted: false };
+    const where: Prisma.ProfileFollowWhereInput = { profileId: currentProfile.id, accepted: false };
 
     const [total, items] = await Promise.all([
       this.prisma.profileFollow.count({ where }),
@@ -191,7 +192,7 @@ export class FollowsService {
         orderBy: { createdAt: 'desc' },
         include: {
           follower: {
-            select: { id: true, username: true, displayName: true, avatarUrl: true },
+            select: PROFILE_PREVIEW_SELECT,
           },
         },
       }),
@@ -204,7 +205,10 @@ export class FollowsService {
     const currentProfile = await this.usersService.getProfileByUserId(currentUserId);
 
     const { skip, take } = getPaginationOffsets(query);
-    const where = { followerId: currentProfile.id, accepted: false };
+    const where: Prisma.ProfileFollowWhereInput = {
+      followerId: currentProfile.id,
+      accepted: false,
+    };
 
     const [total, items] = await Promise.all([
       this.prisma.profileFollow.count({ where }),
@@ -215,7 +219,7 @@ export class FollowsService {
         orderBy: { createdAt: 'desc' },
         include: {
           following: {
-            select: { id: true, username: true, displayName: true, avatarUrl: true },
+            select: PROFILE_PREVIEW_SELECT,
           },
         },
       }),
@@ -239,10 +243,12 @@ export class FollowsService {
       throw new ConflictException(ERROR_MESSAGES.FOLLOW_REQUEST_ALREADY_ACCEPTED);
     }
 
-    return this.prisma.profileFollow.update({
+    const updatedFollow = await this.prisma.profileFollow.update({
       where,
       data: { accepted: true },
     });
+
+    return toFollowResponseDto(updatedFollow);
   }
 
   async rejectRequest(currentUserId: string, followerProfileId: string) {

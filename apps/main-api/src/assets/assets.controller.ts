@@ -9,7 +9,14 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiCreatedResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { AccessGuard } from '../auth/guards/access.guard';
 import { AssetsService } from './assets.service';
 import { UploadAssetsDto } from './dto/upload-assets.dto';
@@ -22,8 +29,10 @@ export class AssetsController {
   constructor(private readonly assetsService: AssetsService) {}
 
   @Post('upload')
+  @ApiOperation({ summary: 'Upload up to 10 media files' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: UploadAssetsDto })
+  @ApiCreatedResponse({ description: 'Files uploaded successfully' })
   @UseInterceptors(FilesInterceptor('files', 10))
   async uploadFiles(
     @UploadedFiles(

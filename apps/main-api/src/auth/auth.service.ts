@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ERROR_MESSAGES } from '../common/constants/messages.constants';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
@@ -7,13 +13,29 @@ import { SignUpDto } from './dto/signup.dto';
 
 @Injectable()
 export class AuthService {
-  private readonly authServiceUrl =
-    process.env.AUTH_SERVICE_URL || 'http://localhost:3001/internal/auth';
+  private readonly authServiceUrl: string;
 
   constructor(
     private readonly usersService: UsersService,
     private readonly prisma: PrismaService,
-  ) {}
+    private readonly config: ConfigService,
+  ) {
+    this.authServiceUrl =
+      this.config.get<string>('AUTH_SERVICE_URL') || 'http://localhost:3001/internal/auth';
+  }
+
+  private async generateUniqueUsername(baseUsername: string): Promise<string> {
+    const normalizedBase = baseUsername.trim() || 'user';
+    const existing = await this.prisma.profile.findUnique({
+      where: { username: normalizedBase },
+    });
+
+    if (!existing) {
+      return normalizedBase;
+    }
+
+    return `${normalizedBase}_${Math.floor(1000 + Math.random() * 9000)}`;
+  }
 
   async handleSignUp(dto: SignUpDto) {
     if (dto.username) {
@@ -21,9 +43,12 @@ export class AuthService {
         where: { username: dto.username },
       });
       if (existingProfile) {
-        throw new BadRequestException(ERROR_MESSAGES.USERNAME_ALREADY_TAKEN);
+        throw new ConflictException(ERROR_MESSAGES.USERNAME_ALREADY_TAKEN);
       }
     }
+
+    const emailPrefix = dto.email.split('@')[0] ?? 'user';
+    const username = dto.username ?? (await this.generateUniqueUsername(emailPrefix));
 
     const res = await fetch(`${this.authServiceUrl}/register`, {
       method: 'POST',
@@ -36,12 +61,9 @@ export class AuthService {
     const data = await res.json();
     if (!res.ok) {
       throw new BadRequestException(
-        data.error || data.message || ERROR_MESSAGES.REGISTRATION_FAILED,
+        data.message || data.error || ERROR_MESSAGES.REGISTRATION_FAILED,
       );
     }
-
-    const emailUsername = dto.email.split('@')[0] ?? 'user';
-    const username = dto.username || emailUsername;
 
     await this.usersService.create({
       id: data.user.id,
@@ -64,7 +86,7 @@ export class AuthService {
     const data = await res.json();
     if (!res.ok) {
       throw new UnauthorizedException(
-        data.error || data.message || ERROR_MESSAGES.INVALID_CREDENTIALS,
+        data.message || data.error || ERROR_MESSAGES.INVALID_CREDENTIALS,
       );
     }
     return data;
@@ -97,7 +119,9 @@ export class AuthService {
 
     const data = await res.json();
     if (!res.ok) {
-      throw new UnauthorizedException(data.error || ERROR_MESSAGES.FAILED_TO_REFRESH_TOKEN);
+      throw new UnauthorizedException(
+        data.message || data.error || ERROR_MESSAGES.FAILED_TO_REFRESH_TOKEN,
+      );
     }
     return data;
   }
@@ -113,16 +137,18 @@ export class AuthService {
 
     const data = await res.json();
     if (!res.ok) {
-      throw new BadRequestException(data.error || ERROR_MESSAGES.LOGOUT_FAILED);
+      throw new BadRequestException(data.message || data.error || ERROR_MESSAGES.LOGOUT_FAILED);
     }
     return data;
   }
 
   async handleOAuthInit(provider: string) {
     const res = await fetch(`${this.authServiceUrl}/oauth/initiate?provider=${provider}`);
-    const data = (await res.json()) as { url?: string; error?: string };
+    const data = (await res.json()) as { url?: string; error?: string; message?: string };
     if (!res.ok || !data.url) {
-      throw new BadRequestException(data.error || ERROR_MESSAGES.FAILED_TO_INITIATE_OAUTH);
+      throw new BadRequestException(
+        data.message || data.error || ERROR_MESSAGES.FAILED_TO_INITIATE_OAUTH,
+      );
     }
     return data.url;
   }
@@ -138,22 +164,23 @@ export class AuthService {
 
     const data = await res.json();
     if (!res.ok) {
-      throw new BadRequestException(data.error || ERROR_MESSAGES.FAILED_TO_EXCHANGE_OAUTH_CODE);
+      throw new BadRequestException(
+        data.message || data.error || ERROR_MESSAGES.FAILED_TO_EXCHANGE_OAUTH_CODE,
+      );
     }
 
-    const existingUser = await this.usersService.findOne(data.user.id).catch(() => null);
+    const existingUser = await this.prisma.user.findUnique({
+      where: { id: data.user.id },
+    });
+
     if (!existingUser) {
-      let username = data.user.email.split('@')[0];
-      const taken = await this.prisma.profile.findUnique({ where: { username } });
-      if (taken) {
-        username = `${username}_${Math.floor(1000 + Math.random() * 9000)}`;
-      }
+      const emailPrefix = String(data.user.email).split('@')[0] ?? 'user';
+      const username = await this.generateUniqueUsername(emailPrefix);
 
       await this.usersService.create({
         id: data.user.id,
         email: data.user.email,
         username,
-        displayName: data.user.displayName,
       });
     }
 
