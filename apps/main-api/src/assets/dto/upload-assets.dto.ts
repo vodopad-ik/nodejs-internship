@@ -9,5 +9,5 @@ export class UploadAssetsDto {
     },
     description: 'Array of media files to upload (up to 10 files, max 15MB each)',
   })
-  files!: Express.Multer.File[];
+  files: Express.Multer.File[];
 }

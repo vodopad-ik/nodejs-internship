@@ -13,7 +13,7 @@ export class SignUpDto {
   @ApiProperty({ example: 'user@example.com', description: 'User email' })
   @IsEmail()
   @IsNotEmpty()
-  email!: string;
+  email: string;
 
   @ApiProperty({
     example: 'password123',
@@ -25,5 +25,5 @@ export class SignUpDto {
   @IsNotEmpty()
   @MinLength(6)
   @MaxLength(20)
-  password!: string;
+  password: string;
 }

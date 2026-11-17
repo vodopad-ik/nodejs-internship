@@ -13,7 +13,7 @@ export class CreateCommentDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(2200)
-  content!: string;
+  content: string;
 
   @ApiPropertyOptional({
     example: 'clx123abc456def789',

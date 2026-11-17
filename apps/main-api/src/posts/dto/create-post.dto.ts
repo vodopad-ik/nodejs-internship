@@ -21,7 +21,7 @@ export class CreatePostDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(2200)
-  content!: string;
+  content: string;
 
   @ApiProperty({
     example: ['clx123asset1', 'clx123asset2'],
@@ -34,5 +34,5 @@ export class CreatePostDto {
   @ArrayUnique()
   @IsString({ each: true })
   @IsNotEmpty({ each: true })
-  assetIds!: string[];
+  assetIds: string[];
 }

@@ -60,9 +60,7 @@ export class AuthService {
 
     const data = await res.json();
     if (!res.ok) {
-      throw new BadRequestException(
-        data.message || data.error || ERROR_MESSAGES.REGISTRATION_FAILED,
-      );
+      throw new BadRequestException(data.message || ERROR_MESSAGES.REGISTRATION_FAILED);
     }
 
     await this.usersService.create({
@@ -85,9 +83,7 @@ export class AuthService {
 
     const data = await res.json();
     if (!res.ok) {
-      throw new UnauthorizedException(
-        data.message || data.error || ERROR_MESSAGES.INVALID_CREDENTIALS,
-      );
+      throw new UnauthorizedException(data.message || ERROR_MESSAGES.INVALID_CREDENTIALS);
     }
     return data;
   }
@@ -119,9 +115,7 @@ export class AuthService {
 
     const data = await res.json();
     if (!res.ok) {
-      throw new UnauthorizedException(
-        data.message || data.error || ERROR_MESSAGES.FAILED_TO_REFRESH_TOKEN,
-      );
+      throw new UnauthorizedException(data.message || ERROR_MESSAGES.FAILED_TO_REFRESH_TOKEN);
     }
     return data;
   }
@@ -137,18 +131,16 @@ export class AuthService {
 
     const data = await res.json();
     if (!res.ok) {
-      throw new BadRequestException(data.message || data.error || ERROR_MESSAGES.LOGOUT_FAILED);
+      throw new BadRequestException(data.message || ERROR_MESSAGES.LOGOUT_FAILED);
     }
     return data;
   }
 
   async handleOAuthInit(provider: string) {
     const res = await fetch(`${this.authServiceUrl}/oauth/initiate?provider=${provider}`);
-    const data = (await res.json()) as { url?: string; error?: string; message?: string };
+    const data = (await res.json()) as { url?: string; message?: string };
     if (!res.ok || !data.url) {
-      throw new BadRequestException(
-        data.message || data.error || ERROR_MESSAGES.FAILED_TO_INITIATE_OAUTH,
-      );
+      throw new BadRequestException(data.message || ERROR_MESSAGES.FAILED_TO_INITIATE_OAUTH);
     }
     return data.url;
   }
@@ -164,9 +156,7 @@ export class AuthService {
 
     const data = await res.json();
     if (!res.ok) {
-      throw new BadRequestException(
-        data.message || data.error || ERROR_MESSAGES.FAILED_TO_EXCHANGE_OAUTH_CODE,
-      );
+      throw new BadRequestException(data.message || ERROR_MESSAGES.FAILED_TO_EXCHANGE_OAUTH_CODE);
     }
 
     const existingUser = await this.prisma.user.findUnique({

@@ -105,25 +105,25 @@ export class AuthService {
 
   getOAuthUrl(provider: 'google' | 'github'): string {
     if (provider === 'google') {
-      const rootUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
-      const params = new URLSearchParams({
+      const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+      url.search = new URLSearchParams({
         client_id: env.oauth.google.clientId,
         redirect_uri: env.oauth.google.callbackUrl,
         response_type: 'code',
         scope: 'openid email profile',
         access_type: 'offline',
         prompt: 'consent',
-      });
-      return `${rootUrl}?${params.toString()}`;
+      }).toString();
+      return url.toString();
     }
 
-    const rootUrl = 'https://github.com/login/oauth/authorize';
-    const params = new URLSearchParams({
+    const url = new URL('https://github.com/login/oauth/authorize');
+    url.search = new URLSearchParams({
       client_id: env.oauth.github.clientId,
       redirect_uri: env.oauth.github.callbackUrl,
       scope: 'user:email',
-    });
-    return `${rootUrl}?${params.toString()}`;
+    }).toString();
+    return url.toString();
   }
 
   async exchangeCodeForTokens(provider: 'google' | 'github', code: string) {

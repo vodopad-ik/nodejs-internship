@@ -10,7 +10,6 @@ authRouter.post('/register', async (req: Request, res: Response, next: NextFunct
     const { email, password } = req.body;
     if (!email || !password) {
       res.status(400).json({
-        error: AUTH_ERROR_MESSAGES.EMAIL_AND_PASSWORD_REQUIRED,
         message: AUTH_ERROR_MESSAGES.EMAIL_AND_PASSWORD_REQUIRED,
       });
       return;
@@ -27,7 +26,6 @@ authRouter.post('/login', async (req: Request, res: Response, next: NextFunction
     const { email, password } = req.body;
     if (!email || !password) {
       res.status(400).json({
-        error: AUTH_ERROR_MESSAGES.EMAIL_AND_PASSWORD_REQUIRED,
         message: AUTH_ERROR_MESSAGES.EMAIL_AND_PASSWORD_REQUIRED,
       });
       return;
@@ -44,7 +42,6 @@ authRouter.post('/validate', async (req: Request, res: Response) => {
     const { accessToken } = req.body;
     if (!accessToken) {
       res.status(400).json({
-        error: AUTH_ERROR_MESSAGES.ACCESS_TOKEN_REQUIRED,
         message: AUTH_ERROR_MESSAGES.ACCESS_TOKEN_REQUIRED,
       });
       return;
@@ -61,7 +58,6 @@ authRouter.post('/refresh', async (req: Request, res: Response) => {
     const { refreshToken } = req.body;
     if (!refreshToken) {
       res.status(400).json({
-        error: AUTH_ERROR_MESSAGES.REFRESH_TOKEN_REQUIRED,
         message: AUTH_ERROR_MESSAGES.REFRESH_TOKEN_REQUIRED,
       });
       return;
@@ -70,7 +66,6 @@ authRouter.post('/refresh', async (req: Request, res: Response) => {
     res.status(200).json(result);
   } catch {
     res.status(401).json({
-      error: AUTH_ERROR_MESSAGES.INVALID_REFRESH_TOKEN,
       message: AUTH_ERROR_MESSAGES.INVALID_REFRESH_TOKEN,
     });
   }
@@ -81,7 +76,6 @@ authRouter.post('/logout', async (req: Request, res: Response, next: NextFunctio
     const { refreshToken, accessToken } = req.body;
     if (!refreshToken) {
       res.status(400).json({
-        error: AUTH_ERROR_MESSAGES.REFRESH_TOKEN_REQUIRED,
         message: AUTH_ERROR_MESSAGES.REFRESH_TOKEN_REQUIRED,
       });
       return;
@@ -97,7 +91,6 @@ authRouter.get('/oauth/initiate', async (req: Request, res: Response) => {
   const provider = req.query.provider as 'google' | 'github';
   if (!provider || (provider !== 'google' && provider !== 'github')) {
     res.status(400).json({
-      error: AUTH_ERROR_MESSAGES.INVALID_OAUTH_PROVIDER,
       message: AUTH_ERROR_MESSAGES.INVALID_OAUTH_PROVIDER,
     });
     return;
@@ -111,7 +104,6 @@ authRouter.post('/oauth/exchange-code', async (req: Request, res: Response, next
     const { provider, code } = req.body;
     if (!provider || !code) {
       res.status(400).json({
-        error: AUTH_ERROR_MESSAGES.PROVIDER_AND_CODE_REQUIRED,
         message: AUTH_ERROR_MESSAGES.PROVIDER_AND_CODE_REQUIRED,
       });
       return;

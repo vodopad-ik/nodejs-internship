@@ -7,14 +7,14 @@ export enum FollowStatus {
 
 export class FollowResponseDto {
   @ApiProperty({ example: 'clx...targetProfileId' })
-  profileId!: string;
+  profileId: string;
 
   @ApiProperty({ example: 'clx...currentProfileId' })
-  followerId!: string;
+  followerId: string;
 
   @ApiProperty({ example: true })
-  accepted!: boolean;
+  accepted: boolean;
 
   @ApiProperty({ enum: FollowStatus, example: FollowStatus.FOLLOWING })
-  status!: FollowStatus;
+  status: FollowStatus;
 }

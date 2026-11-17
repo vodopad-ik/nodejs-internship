@@ -9,5 +9,5 @@ export class SearchPostDto extends PaginationQueryDto {
   @IsString()
   @IsNotEmpty()
   @MinLength(1)
-  query!: string;
+  query: string;
 }
