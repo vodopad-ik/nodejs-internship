@@ -63,6 +63,13 @@ export class PostsController {
     return this.postsService.findMyLikedPosts(userId, query);
   }
 
+  @Get('my/commented')
+  @ApiOperation({ summary: 'Get paginated list of posts commented by current user' })
+  @ApiOkResponse({ description: 'Paginated list of commented posts' })
+  async findMyCommentedPosts(@CurrentUserId() userId: string, @Query() query: PaginationQueryDto) {
+    return this.postsService.findMyCommentedPosts(userId, query);
+  }
+
   @Get('feed')
   @ApiOperation({ summary: 'Get user feed based on follows' })
   @ApiOkResponse({ description: 'Paginated feed posts' })

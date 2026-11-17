@@ -45,6 +45,19 @@ export class PostsService {
     return follows.map((follow) => follow.profileId);
   }
 
+  private async getVisiblePostsWhere(currentProfileId: string): Promise<Prisma.PostWhereInput> {
+    const authorIds = await this.getAcceptedFollowingIds(currentProfileId);
+
+    return {
+      isArchived: false,
+      OR: [
+        { profile: { isPublic: true } },
+        { profileId: { in: authorIds } },
+        { profileId: currentProfileId },
+      ],
+    };
+  }
+
   private getPostInclude(currentProfileId: string) {
     return {
       profile: {
@@ -73,7 +86,7 @@ export class PostsService {
     };
   }
 
-  private async getAccessiblePost(postId: string, currentProfileId: string) {
+  async getAccessiblePost(postId: string, currentProfileId: string) {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
       include: this.getPostInclude(currentProfileId),
@@ -253,19 +266,14 @@ export class PostsService {
 
   async search(userId: string, searchDto: SearchPostDto) {
     const profile = await this.usersService.getProfileByUserId(userId);
-    const authorIds = await this.getAcceptedFollowingIds(profile.id);
+    const visiblePostsWhere = await this.getVisiblePostsWhere(profile.id);
 
     const where: Prisma.PostWhereInput = {
+      ...visiblePostsWhere,
       content: {
         contains: searchDto.query,
         mode: 'insensitive',
       },
-      isArchived: false,
-      OR: [
-        { profile: { isPublic: true } },
-        { profileId: { in: authorIds } },
-        { profileId: profile.id },
-      ],
     };
 
     const { skip, take } = getPaginationOffsets(searchDto);
@@ -345,13 +353,12 @@ export class PostsService {
 
   async findMyLikedPosts(userId: string, query: PaginationQueryDto) {
     const currentProfile = await this.usersService.getProfileByUserId(userId);
+    const visiblePostsWhere = await this.getVisiblePostsWhere(currentProfile.id);
 
     const { skip, take } = getPaginationOffsets(query);
     const where: Prisma.PostLikeWhereInput = {
       profileId: currentProfile.id,
-      posts: {
-        isArchived: false,
-      },
+      posts: visiblePostsWhere,
     };
 
     const [total, items] = await Promise.all([
@@ -366,6 +373,31 @@ export class PostsService {
     ]);
 
     const posts = items.map((like) => toPostResponse(like.posts));
+    return createPaginatedResponse(posts, total, query);
+  }
+
+  async findMyCommentedPosts(userId: string, query: PaginationQueryDto) {
+    const currentProfile = await this.usersService.getProfileByUserId(userId);
+    const visiblePostsWhere = await this.getVisiblePostsWhere(currentProfile.id);
+
+    const { skip, take } = getPaginationOffsets(query);
+    const where: Prisma.PostWhereInput = {
+      ...visiblePostsWhere,
+      comments: { some: { profileId: currentProfile.id } },
+    };
+
+    const [total, items] = await Promise.all([
+      this.prisma.post.count({ where }),
+      this.prisma.post.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        include: this.getPostInclude(currentProfile.id),
+      }),
+    ]);
+
+    const posts = items.map((post) => toPostResponse(post));
     return createPaginatedResponse(posts, total, query);
   }
 }

@@ -3,6 +3,7 @@
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist",
+    "strictPropertyInitialization": false,
     "ignoreDeprecations": "5.0"
   },
   "include": ["src/**/*"]
