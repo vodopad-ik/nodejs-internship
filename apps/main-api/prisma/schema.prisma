@@ -32,7 +32,7 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  profile  Profile?
+  profile Profile?
 
   @@map("users")
   @@schema("auth")
@@ -137,9 +137,11 @@ model Asset {
 }
 
 model Chat {
-  id      String  @id @default(cuid())
-  title   String?
-  isGroup Boolean @default(false) @map("is_group")
+  id          String  @id @default(cuid())
+  title       String?
+  description String?
+  directKey   String? @unique @map("direct_key")
+  isGroup     Boolean @default(false) @map("is_group")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -147,23 +149,27 @@ model Chat {
   participants ChatParticipant[]
   messages     Message[]
 
+  @@index([updatedAt(sort: Desc)])
   @@map("chats")
   @@schema("main")
 }
 
 model Message {
-  id               String  @id @default(cuid())
-  chatId           String  @map("chat_id")
-  senderId         String  @map("sender_id")
-  replyToMessageId String? @map("reply_to_message_id")
-  content          String
+  id               String    @id @default(cuid())
+  chatId           String    @map("chat_id")
+  senderId         String    @map("sender_id")
+  replyToMessageId String?   @map("reply_to_message_id")
+  content          String?
+  isEdited         Boolean   @default(false) @map("is_edited")
+  isDeleted        Boolean   @default(false) @map("is_deleted")
+  deletedAt        DateTime? @map("deleted_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   chat           Chat           @relation(fields: [chatId], references: [id], onDelete: Cascade)
   sender         Profile        @relation(fields: [senderId], references: [id], onDelete: Cascade)
-  replyToMessage Message?       @relation("MessageReplies", fields: [replyToMessageId], references: [id], onDelete: Cascade)
+  replyToMessage Message?       @relation("MessageReplies", fields: [replyToMessageId], references: [id], onDelete: SetNull)
   replies        Message[]      @relation("MessageReplies")
   messageAssets  MessageAsset[]
 
@@ -210,13 +216,15 @@ model ChatParticipant {
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@id([profileId, chatId])
+  @@index([chatId])
   @@map("chat_participants")
   @@schema("main")
 }
 
 model MessageAsset {
-  messageId String @map("message_id")
-  assetId   String @map("asset_id")
+  messageId  String @map("message_id")
+  assetId    String @map("asset_id")
+  orderIndex Int    @default(0) @map("order_index")
 
   message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
   asset   Asset   @relation(fields: [assetId], references: [id], onDelete: Cascade)
@@ -258,6 +266,7 @@ model ProfileConfiguration {
   id          String  @id @default(cuid())
   key         String  @unique
   description String?
+  isDisabled  Boolean @default(false) @map("is_disabled")
 
   profile ProfileToProfileConfiguration[]
 
@@ -300,6 +309,10 @@ enum NotificationType {
   NEW_FOLLOWER
   CHAT_MESSAGE
   CUSTOM
+  FOLLOW_REQUEST
+  GROUP_CHAT_CREATED
+  NEW_POST
+  MENTION
 
   @@schema("notification")
 }
