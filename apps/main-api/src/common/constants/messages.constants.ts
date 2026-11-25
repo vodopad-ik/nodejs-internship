@@ -34,6 +34,25 @@ export const ERROR_MESSAGES = {
   NOT_ALLOWED_TO_MODIFY_COMMENT: 'You are not allowed to modify this comment',
   COMMENT_ALREADY_LIKED: 'You have already liked this comment',
   COMMENT_LIKE_NOT_FOUND: 'Comment like not found',
+  CHAT_NOT_FOUND: 'Chat not found',
+  NOT_CHAT_PARTICIPANT: 'You are not a participant of this chat',
+  CHAT_ADMIN_REQUIRED: 'Only chat administrators can perform this action',
+  NOT_GROUP_CHAT: 'This action is only allowed in group chats',
+  CANNOT_CREATE_PRIVATE_CHAT_WITH_SELF: 'You cannot create a private chat with yourself',
+  GROUP_CHAT_MIN_PARTICIPANTS: 'Group chat must have at least 3 participants including creator',
+  PARTICIPANTS_NOT_FOUND: 'One or more participant profiles do not exist',
+  PARTICIPANT_NOT_IN_CHAT: 'Target user is not a participant of this chat',
+  CANNOT_REMOVE_SELF_FROM_CHAT: 'Use leave endpoint to exit the group chat',
+  ADMIN_MUST_TRANSFER_ROLE: 'Group admin must select a new admin before leaving the chat',
+  INVALID_NEW_ADMIN: 'Selected new admin must be another participant of this chat',
+  NO_FIELDS_TO_UPDATE: 'At least one field must be provided for update',
+  MESSAGE_NOT_FOUND: 'Message not found',
+  NOT_ALLOWED_TO_MODIFY_MESSAGE: 'You are not allowed to modify this message',
+  EMPTY_MESSAGE_CONTENT: 'Message must contain text content or at least one media asset',
+  DELETED_MESSAGE_CANNOT_BE_MODIFIED: 'Deleted message cannot be edited',
+  MESSAGE_ALREADY_DELETED: 'Message is already deleted',
+  REPLY_MESSAGE_NOT_FOUND: 'Replied message not found',
+  REPLY_MESSAGE_WRONG_CHAT: 'Replied message does not belong to this chat',
 } as const;
 
 export const SUCCESS_MESSAGES = {
@@ -44,4 +63,6 @@ export const SUCCESS_MESSAGES = {
   POST_UNLIKED: 'Post unliked successfully',
   COMMENT_LIKED: 'Comment liked successfully',
   COMMENT_UNLIKED: 'Comment unliked successfully',
+  PARTICIPANT_REMOVED: 'Participant removed from group chat',
+  LEFT_GROUP_CHAT: 'Successfully left group chat',
 } as const;
